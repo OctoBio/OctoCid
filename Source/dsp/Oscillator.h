@@ -7,15 +7,18 @@ namespace octocid
     //==========================================================================
     // Oscillateur acid :
     //  - dent de scie descendante anti-aliasée (polyBLEP),
-    //  - carré façon 303 : sur l'original il est obtenu en saturant très fort la
-    //    rampe avec un léger décalage (rapport cyclique ~47 %). On le génère
-    //    directement comme une impulsion polyBLEP à 47 %, ce qui donne la même
-    //    forme sans l'aliasing qu'introduirait la saturation.
+    //  - carré façon 303 : sur l'original, la rampe passe dans un transistor
+    //    saturé avec un décalage. Forme mesurée par Open303 (MIT) :
+    //        sq = tanh(F * (2p - 1) + O), F = 36,9 dB (~70), O = 4,37
+    //    Un front est une rampe douce (la saturation), l'autre est dur : seul
+    //    celui-ci reçoit une correction polyBLEP. Le DC (~O/F) est retiré.
     //==========================================================================
     class AcidOscillator
     {
     public:
-        static constexpr float kSquareDuty = 0.53f;   // partie haute avant inversion -> 47 % après
+        static constexpr float kSqF  = 69.984200f;          // 10^(36,9/20)
+        static constexpr float kSqO  = 4.37f;
+        static constexpr float kSqDC = kSqO / kSqF;         // moyenne de la forme
 
         void prepare (double) noexcept { reset(); }
         void reset() noexcept { phase = 0.0f; }
@@ -25,20 +28,15 @@ namespace octocid
         float process (float inc, float squareMix) noexcept
         {
             const float t = phase;
+            const float ramp = 2.0f * t - 1.0f;
 
-            float saw = 2.0f * t - 1.0f;
-            saw -= polyBlep (t, inc);
-
-            float out = -saw;   // polarité de l'original
+            float out = -(ramp - polyBlep (t, inc));   // dent de scie, polarité de l'original
 
             if (squareMix > 0.0001f)
             {
-                float sq = t < kSquareDuty ? 1.0f : -1.0f;
-                sq += polyBlep (t, inc);
-                float t2 = t + 1.0f - kSquareDuty;
-                if (t2 >= 1.0f) t2 -= 1.0f;
-                sq -= polyBlep (t2, inc);
-                out += squareMix * (-sq - out);
+                // front dur de -2 au retour de phase -> correction polyBLEP
+                const float sq = std::tanh (kSqF * ramp + kSqO) - polyBlep (t, inc) - kSqDC;
+                out += squareMix * (sq - out);
             }
 
             phase += inc;

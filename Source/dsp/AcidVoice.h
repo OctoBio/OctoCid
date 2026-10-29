@@ -35,9 +35,11 @@ namespace octocid
     //    loi mesurée sur l'original (l'Env Mod abaisse aussi la base).
     //  - VCA : décroissance lente (1,23 s) tant que la note est tenue, et le MEG
     //    s'ajoute au volume : c'est le « punch » de la 303, énorme sur l'accent.
-    //  - Accent : ouverture du filtre via un condensateur qui se charge plus
-    //    lentement que le MEG ne retombe -> les accents rapprochés s'accumulent.
-    //  - Slide : notes chevauchées -> glissement RC (~60 ms), sans redéclencher.
+    //  - Accent : le MEG passe dans un suiveur RC (15 ms) et ouvre le filtre
+    //    jusqu'à ~1 octave ; le punch vient surtout du VCA.
+    //  - Slide : notes chevauchées -> glissement RC en fréquence (60 ms).
+    //  - Comme l'original, oscillateur et filtre ne sont jamais remis à zéro
+    //    entre les notes (une remise à zéro rend l'attaque 4-5 dB plus faible).
     //
     // Aucune allocation ; process() tourne à la fréquence suréchantillonnée.
     //==========================================================================
@@ -46,11 +48,9 @@ namespace octocid
     public:
         static constexpr float kOutputGain     = 0.16f;   // calibré au test : le pire cas (accent max) reste ~0 dBFS
         static constexpr float kAccentDecayMs  = 200.0f;
-        static constexpr float kSlideTauS      = 0.02f;   // ~60 ms pour arriver sur la note
+        static constexpr float kSlideTauS      = 0.012f;  // slide 303 : 60 ms (constante = 0,2 x durée)
         static constexpr float kEnvAttackS     = 0.003f;  // attaque du MEG vers le cutoff
-        static constexpr float kSweepChargeS   = 0.04f;   // condensateur d'accent : charge
-        static constexpr float kSweepReleaseS  = 0.2f;    //                        décharge
-        static constexpr float kAccentOctaves  = 1.5f;    // ouverture max par l'accent
+        static constexpr float kAccentRcS      = 0.015f;  // suiveur RC du circuit d'accent (Open303)
         static constexpr float kAmpDecayS      = 1.23f;
         static constexpr float kAmpReleaseS    = 0.0005f; // note normale
         static constexpr float kAmpReleaseAccS = 0.05f;   // note accentuée
@@ -68,8 +68,7 @@ namespace octocid
             smoothCoef   = onePoleCoef (0.008f, sampleRate);
             slideCoef    = onePoleCoef (kSlideTauS, sampleRate);
             envAttack    = onePoleCoef (kEnvAttackS, sampleRate);
-            sweepCharge  = onePoleCoef (kSweepChargeS, sampleRate);
-            sweepRelease = onePoleCoef (kSweepReleaseS, sampleRate);
+            accentRc     = onePoleCoef (kAccentRcS, sampleRate);
             ampDecay     = std::exp (-1.0f / (kAmpDecayS * (float) sampleRate));
             ampRelNormal = std::exp (-1.0f / (kAmpReleaseS * (float) sampleRate));
             ampRelAccent = std::exp (-1.0f / (kAmpReleaseAccS * (float) sampleRate));
@@ -111,13 +110,7 @@ namespace octocid
             if (legato)
                 return;                        // slide : ni MEG ni VCA redéclenchés
 
-            // Voix silencieuse : on repart d'une phase et d'un filtre propres (attaque constante)
-            if (ampEnv < 1.0e-4f && meg < 1.0e-3f)
-            {
-                osc.resetPhase();
-                filter.reset();
-            }
-
+            freq = midiToHz (targetPitch);   // hauteur directe (pas de slide)
             pitch = targetPitch;
             meg = 1.0f;
             ampEnv = 1.0f;
@@ -153,9 +146,9 @@ namespace octocid
             sm.accent    += (target.accent    - sm.accent)    * smoothCoef;
             sm.squareMix += (target.squareMix - sm.squareMix) * smoothCoef;
 
-            // --- Hauteur + slide RC
-            pitch += (targetPitch - pitch) * slideCoef;
-            const float inc = std::min (midiToHz (pitch + sm.tune) * invFs, 0.45f);
+            // --- Hauteur + slide RC (en fréquence, comme le circuit de l'original)
+            freq += (midiToHz (targetPitch) - freq) * slideCoef;
+            const float inc = std::min (freq * tuneFactor (sm.tune) * invFs, 0.45f);
             const float raw = preHighpass.process (osc.process (inc, sm.squareMix));
 
             // --- MEG : constante de temps 200..2000 ms (200 ms sur accent)
@@ -164,17 +157,16 @@ namespace octocid
             meg *= megCoef;
             envSmoothed += (meg - envSmoothed) * envAttack;
 
-            // --- Accent sweep (condensateur)
-            const float sweepTarget = accentNote ? meg : 0.0f;
-            sweep += (sweepTarget - sweep) * (sweepTarget > sweep ? sweepCharge : sweepRelease);
+            // --- Accent : suiveur RC du MEG, actif seulement sur les notes accentuées
             const float accentAmount = accentNote ? sm.accent : 0.0f;
+            sweep += ((accentNote ? meg : 0.0f) - sweep) * accentRc;
 
             // --- Cutoff : loi mesurée (Open303) entre 314 et 2394 Hz
             const float c = sm.cutoff, e = sm.envMod;
             const float envScaler = (1.0f - c) * (3.773996f * e + 0.736966f) + c * (4.194549f * e + 0.864345f);
             const float envOffset = 0.048293f * c + 0.294391f;
             const float baseHz = 313.815f * std::exp2 (c * 2.931652f);
-            const float octaves = envScaler * (envSmoothed - envOffset) + kAccentOctaves * sm.accent * sweep;
+            const float octaves = envScaler * (envSmoothed - envOffset) + accentAmount * sweep;
             const float cutoffHz = std::max (200.0f, baseHz * std::exp2 (octaves));
 
             // --- Résonance : courbe de la 303 (déjà forte à mi-course)
@@ -194,11 +186,21 @@ namespace octocid
 
         // Pour le test / l'interface
         float getAccentSweep() const noexcept { return sweep; }
-        float getPitch() const noexcept { return pitch; }
+        float getPitch() const noexcept { return 69.0f + 12.0f * std::log2 (freq / 440.0f); }
         bool isGateOn() const noexcept { return gate; }
         bool isAccent() const noexcept { return accentNote; }
 
     private:
+        float tuneFactor (float tune) noexcept
+        {
+            if (std::abs (tune - cachedTune) > 1.0e-6f)
+            {
+                cachedTune = tune;
+                cachedTuneFactor = std::exp2 (tune * (1.0f / 12.0f));
+            }
+            return cachedTuneFactor;
+        }
+
         double fs = 44100.0;
         float invFs = 1.0f / 44100.0f;
 
@@ -212,11 +214,12 @@ namespace octocid
         int accentThreshold = 100;
 
         bool gate = false, accentNote = false;
-        float pitch = 60.0f, targetPitch = 60.0f;
+        float pitch = 60.0f, targetPitch = 60.0f, freq = 261.63f;
+        float cachedTune = 0.0f, cachedTuneFactor = 1.0f;
         float meg = 0.0f, envSmoothed = 0.0f, sweep = 0.0f, ampEnv = 0.0f;
 
         float smoothCoef = 0.0f, slideCoef = 0.0f, envAttack = 0.0f;
-        float sweepCharge = 0.0f, sweepRelease = 0.0f;
+        float accentRc = 0.0f;
         float ampDecay = 0.0f, ampRelNormal = 0.0f, ampRelAccent = 0.0f, accentMegCoef = 0.0f;
     };
 }
