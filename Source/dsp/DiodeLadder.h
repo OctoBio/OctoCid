@@ -5,20 +5,22 @@
 namespace octocid
 {
     //==========================================================================
-    // Filtre passe-bas 4 pôles « diode ladder » (topologie de la bassline acid
-    // classique), discrétisé en ZDF/TPT (intégrateurs trapézoïdaux, sans délai
-    // dans la boucle de réaction).
+    // Filtre passe-bas 4 pôles « diode ladder » de la bassline acid,
+    // discrétisé en ZDF/TPT (intégrateurs trapézoïdaux, boucle résolue sans délai).
     //
     // Modèle linéarisé des 4 condensateurs couplés (le dernier vaut C/2) :
     //   y1' = wc (u  - 2 y1 + y2)
     //   y2' = wc (y1 - 2 y2 + y3)
     //   y3' = wc (y2 - 2 y3 + y4)
     //   y4' = 2 wc (y3 - y4)
-    // u = tanh(x - k * HPF(y4))  : saturation dans la boucle, et passe-haut ~90 Hz
-    // dans la réaction (la résonance s'affaiblit dans le grave, comme l'original).
+    // Cette topologie a exactement la même fonction de transfert que le modèle
+    // « TB_303 » de mystran & kunn utilisé par Open303 (vérifié numériquement) :
+    // auto-oscillation à k = 17, pic de résonance à sqrt(2) * wc.
     //
-    // Propriétés vérifiées : auto-oscillation à k = 17, pic de résonance à
-    // sqrt(2) * wc -> le paramètre cutoffHz place le pic de résonance.
+    // Le filtre est quasi linéaire, comme l'original : la résonance reste
+    // « liquide ». Un limiteur doux n'intervient qu'à fort niveau pour garder la
+    // résonance maximale sous contrôle. Passe-haut 150 Hz dans la réaction :
+    // la résonance s'affaiblit dans le grave (valeur Open303).
     //==========================================================================
     class DiodeLadder
     {
@@ -28,7 +30,7 @@ namespace octocid
         void prepare (double sampleRate) noexcept
         {
             fs = (float) sampleRate;
-            hpG = std::tan (kPi * 90.0f / fs);
+            hpG = std::tan (kPi * 150.0f / fs);
             maxWcHz = 0.42f * fs * 0.70710678f;
             reset();
         }
@@ -39,14 +41,13 @@ namespace octocid
             hpS = 0.0f;
         }
 
-        // x : entrée (~±1), cutoffHz : fréquence du pic, k : 0..~16.5
-        float process (float x, float cutoffHz, float k) noexcept
+        // x : entrée (~±1), cutoffHz : fréquence du pic, k : 0..17, makeup : gain de sortie
+        float process (float x, float cutoffHz, float k, float makeup) noexcept
         {
             const float wcHz = std::min (cutoffHz * 0.70710678f, maxWcHz);
             const float g = std::tan (kPi * wcHz / fs);
 
             // Système tridiagonal M y = s + g e1 u, avec M = I - g A
-            // diag = 1 + 2g ; sur-diag = -g ; sous-diag = -g (ligne 4 : -2g)
             const float b = 1.0f + 2.0f * g;
             const float a2 = -g, a3 = -g, a4 = -2.0f * g;
             const float c1 = -g, c2 = -g, c3 = -g;
@@ -74,17 +75,15 @@ namespace octocid
             const float ha = 1.0f / (1.0f + hpG);
             const float hc = -hpS * ha;
 
-            // Résolution de la boucle (y4 = P4 + Q4 u, u = xin - k hp), puis saturation
-            const float xin = 0.5f * x;
-            const float uLin = (xin - k * (ha * P4 + hc)) / (1.0f + k * ha * Q4);
-            const float u = fastTanh (uLin);
+            // Résolution exacte de la boucle linéaire, puis limiteur doux (inactif à niveau normal)
+            const float uLin = (x - k * (ha * P4 + hc)) / (1.0f + k * ha * Q4);
+            const float u = kLimit * fastTanh (uLin * (1.0f / kLimit));
 
             const float y1 = P1 + Q1 * u;
             const float y2 = P2 + Q2 * u;
             const float y3 = P3 + Q3 * u;
             const float y4 = P4 + Q4 * u;
 
-            // Mise à jour des intégrateurs trapézoïdaux
             s[0] = 2.0f * y1 - s[0];
             s[1] = 2.0f * y2 - s[1];
             s[2] = 2.0f * y3 - s[2];
@@ -93,11 +92,12 @@ namespace octocid
             const float lp = (hpG * y4 + hpS) * ha;
             hpS = 2.0f * lp - hpS;
 
-            // Compensation partielle de gain : le grave baisse encore avec la résonance
-            return 2.0f * y4 * std::sqrt (1.0f + k);
+            return y4 * makeup;
         }
 
     private:
+        static constexpr float kLimit = 2.5f;
+
         float fs = 44100.0f;
         float s[4] {};
         float hpG = 0.0f, hpS = 0.0f;

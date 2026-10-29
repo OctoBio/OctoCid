@@ -39,7 +39,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
         StringArray { "Saw", "Square" }, 0));
 
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::volume, "Volume",
-        NormalisableRange<float> (-48.0f, 6.0f, 0.1f), -6.0f,
+        NormalisableRange<float> (-48.0f, 6.0f, 0.1f), -3.0f,
         AudioParameterFloatAttributes().withLabel ("dB")));
 
     layout.add (std::make_unique<AudioParameterInt> (ParamIDs::accentThreshold, "Accent Velocity", 1, 127, 100));
@@ -69,6 +69,7 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     voice.prepare (sampleRate * (double) oversamplers[currentQuality]->getOversamplingFactor());
     updateVoiceParams();
     voice.reset();
+    toneShaper.prepare (sampleRate);
 
     outputGain.reset (sampleRate, 0.02);
     outputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (pVolume->load()));
@@ -147,7 +148,11 @@ void OctoCidAudioProcessor::renderChunk (float* out, int numSamples, const juce:
     }
 
     os.processSamplesDown (mono);
-    juce::FloatVectorOperations::copy (out, monoBuffer.getReadPointer (0), numSamples);
+
+    // Façonnage du grave à la fréquence de l'hôte
+    const float* down = monoBuffer.getReadPointer (0);
+    for (int i = 0; i < numSamples; ++i)
+        out[i] = toneShaper.process (down[i]);
 }
 
 void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)

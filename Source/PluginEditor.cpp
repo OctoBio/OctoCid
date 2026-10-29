@@ -154,7 +154,7 @@ void OctoCidAudioProcessorEditor::paint (juce::Graphics& g)
 
     g.setColour (dim);
     g.setFont (juce::FontOptions (15.0f));
-    g.drawText ("v" JucePlugin_VersionString " - moteur sonore (etape 2) - potards provisoires",
+    g.drawText ("v" JucePlugin_VersionString " - moteur sonore (etape 2, calibrage 303) - potards provisoires",
                 juce::Rectangle<int> (42, 105, 600, 24), juce::Justification::centredLeft);
 
     // Panneaux

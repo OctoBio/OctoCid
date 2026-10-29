@@ -58,6 +58,7 @@ private:
     void renderChunk (float* out, int numSamples, const juce::MidiBuffer& midi, int startSample) noexcept;
 
     octocid::AcidVoice voice;
+    octocid::ToneShaper toneShaper;
 
     // Oversampling : index 0 = 2x (Normal), 1 = 4x (High)
     std::unique_ptr<juce::dsp::Oversampling<float>> oversamplers[2];

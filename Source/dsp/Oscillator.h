@@ -5,58 +5,57 @@
 namespace octocid
 {
     //==========================================================================
-    // Oscillateur acid : dent de scie anti-aliasée (polyBLEP) et carré dérivé
-    // de la dent de scie par un waveshaper façon transistor (comme l'original :
-    // fronts légèrement arrondis, pas un carré parfait).
+    // Oscillateur acid :
+    //  - dent de scie descendante anti-aliasée (polyBLEP),
+    //  - carré façon 303 : sur l'original il est obtenu en saturant très fort la
+    //    rampe avec un léger décalage (rapport cyclique ~47 %). On le génère
+    //    directement comme une impulsion polyBLEP à 47 %, ce qui donne la même
+    //    forme sans l'aliasing qu'introduirait la saturation.
     //==========================================================================
     class AcidOscillator
     {
     public:
-        void prepare (double sampleRate) noexcept
-        {
-            // Bloqueur de DC ~8 Hz (le carré à rapport cyclique décalé produit du DC)
-            dcR = std::exp (-2.0f * kPi * 8.0f / (float) sampleRate);
-            reset();
-        }
+        static constexpr float kSquareDuty = 0.53f;   // partie haute avant inversion -> 47 % après
 
-        void reset() noexcept { phase = 0.0f; dcX = dcY = 0.0f; }
+        void prepare (double) noexcept { reset(); }
+        void reset() noexcept { phase = 0.0f; }
+        void resetPhase() noexcept { phase = 0.0f; }
 
         // inc = fréquence / sampleRate ; squareMix : 0 = saw, 1 = square
         float process (float inc, float squareMix) noexcept
         {
-            float saw = 2.0f * phase - 1.0f;
-            saw -= polyBlep (phase, inc);
+            const float t = phase;
+
+            float saw = 2.0f * t - 1.0f;
+            saw -= polyBlep (t, inc);
+
+            float out = -saw;   // polarité de l'original
+
+            if (squareMix > 0.0001f)
+            {
+                float sq = t < kSquareDuty ? 1.0f : -1.0f;
+                sq += polyBlep (t, inc);
+                float t2 = t + 1.0f - kSquareDuty;
+                if (t2 >= 1.0f) t2 -= 1.0f;
+                sq -= polyBlep (t2, inc);
+                out += squareMix * (-sq - out);
+            }
 
             phase += inc;
             if (phase >= 1.0f)
                 phase -= 1.0f;
 
-            float out = -saw;   // rampe descendante, comme l'original
-
-            if (squareMix > 0.0001f)
-            {
-                // Saturation forte de la rampe : transition douce sur ~10 % de la période,
-                // léger biais pour un rapport cyclique légèrement asymétrique.
-                const float sq = 0.72f * fastTanh (12.0f * saw + 0.35f);
-                out += squareMix * (sq - out);
-            }
-
-            // Bloqueur de DC
-            const float y = out - dcX + dcR * dcY;
-            dcX = out;
-            dcY = y;
-            return y;
+            return out;
         }
 
     private:
         static float polyBlep (float t, float dt) noexcept
         {
-            if (t < dt)        { t /= dt;          return t + t - t * t - 1.0f; }
-            if (t > 1.0f - dt) { t = (t - 1.0f) / dt; return t * t + t + t + 1.0f; }
+            if (t < dt)        { t /= dt;              return t + t - t * t - 1.0f; }
+            if (t > 1.0f - dt) { t = (t - 1.0f) / dt;  return t * t + t + t + 1.0f; }
             return 0.0f;
         }
 
         float phase = 0.0f;
-        float dcR = 0.999f, dcX = 0.0f, dcY = 0.0f;
     };
 }
