@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 0.1.0 LANGUAGES C CXX)
+project(OctoCid VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,6 +46,12 @@ juce_generate_juce_header(OctoCid)
 target_sources(OctoCid PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/Params.h
+    Source/dsp/DspUtils.h
+    Source/dsp/Oscillator.h
+    Source/dsp/DiodeLadder.h
+    Source/dsp/NoteStack.h
+    Source/dsp/AcidVoice.h
 )
 
 target_include_directories(OctoCid PRIVATE Source)

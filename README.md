@@ -2,7 +2,13 @@
 
 Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte escargot.
 
-> Statut : étape 1 (squelette). Le plugin se charge, sort du silence et affiche les notes MIDI reçues.
+> Statut : étape 2 (moteur sonore). Jouable au clavier ou au piano roll, avec des potards provisoires.
+
+## Jeu au clavier
+
+- Notes qui se chevauchent = **slide** (glissement sans redéclencher les enveloppes)
+- Vélocité ≥ seuil (100 par défaut, réglable) = **accent**
+- Qualité : Normal (suréchantillonnage 2x) ou High (4x)
 
 ## Build local (Windows)
 
@@ -21,7 +27,7 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 ## Feuille de route
 
 1. Squelette ✅
-2. Moteur sonore (osc, filtre diode ladder, enveloppes, accent, slide)
+2. Moteur sonore (osc, filtre diode ladder, enveloppes, accent, slide) ✅
 3. Drive, LFO, Slime Mods
 4. Séquenceur + sync DAW + export MIDI
 5. Interface
