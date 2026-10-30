@@ -3,11 +3,12 @@
 #include <JuceHeader.h>
 #include "Params.h"
 #include "dsp/AcidVoice.h"
+#include "dsp/Drive.h"
 
 //==============================================================================
-// OctoCid — étape 2 : moteur sonore.
-// Toute la voix (oscillateur, enveloppes, filtre) tourne à la fréquence
-// suréchantillonnée (2x en Normal, 4x en High), puis est redescendue.
+// OctoCid — moteur sonore + Drive + LFO + Slime Mods + presets d'usine.
+// La voix et le Drive tournent à la fréquence suréchantillonnée (2x Normal,
+// 4x High), puis le signal est redescendu et façonné dans le grave.
 //==============================================================================
 class OctoCidAudioProcessor : public juce::AudioProcessor
 {
@@ -34,11 +35,16 @@ public:
     double getTailLengthSeconds() const override { return 0.1; }
 
     //==========================================================================
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram (int) override {}
-    const juce::String getProgramName (int) override { return "Init"; }
+    // Presets d'usine (exposés au DAW comme programmes)
+    int getNumPrograms() override;
+    int getCurrentProgram() override { return currentProgram; }
+    void setCurrentProgram (int index) override;
+    const juce::String getProgramName (int index) override;
     void changeProgramName (int, const juce::String&) override {}
+    juce::String getProgramDescription (int index) const;
+
+    // Applique un preset même s'il est déjà sélectionné (choix explicite dans l'interface)
+    void applyProgram (int index);
 
     //==========================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
@@ -54,10 +60,15 @@ public:
 
 private:
     void handleMidi (const juce::MidiMessage& msg) noexcept;
-    void updateVoiceParams() noexcept;
+    void updateParams() noexcept;
+    void updateLfoSync() noexcept;
     void renderChunk (float* out, int numSamples, const juce::MidiBuffer& midi, int startSample) noexcept;
+    std::atomic<float>* raw (const juce::ParameterID& id) { return apvts.getRawParameterValue (id.getParamID()); }
+
+    static constexpr float kKnee = 0.708f, kCeiling = 0.989f;   // -3 dBFS / -0,1 dBFS
 
     octocid::AcidVoice voice;
+    octocid::Drive drive;
     octocid::ToneShaper toneShaper;
 
     // Oversampling : index 0 = 2x (Normal), 1 = 4x (High)
@@ -68,21 +79,18 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> outputGain;
     double hostSampleRate = 44100.0;
     int maxBlockSize = 512;
+    int currentProgram = 0;
+    bool drivePreVca = false;
 
-    // Pointeurs directs vers les paramètres (lecture atomique, sans recherche)
-    std::atomic<float>* pTune = nullptr;
-    std::atomic<float>* pCutoff = nullptr;
-    std::atomic<float>* pResonance = nullptr;
-    std::atomic<float>* pEnvMod = nullptr;
-    std::atomic<float>* pDecay = nullptr;
-    std::atomic<float>* pAccent = nullptr;
-    std::atomic<float>* pWaveform = nullptr;
-    std::atomic<float>* pVolume = nullptr;
-    std::atomic<float>* pAccentThr = nullptr;
-    std::atomic<float>* pQuality = nullptr;
-    std::atomic<float>* pSlideTime = nullptr;
-    std::atomic<float>* pSweepSpeed = nullptr;
-    std::atomic<float>* pSlidePunch = nullptr;
+    struct RawParams
+    {
+        std::atomic<float> *tune, *cutoff, *resonance, *envMod, *decay, *accent, *waveform, *volume,
+                           *accentThr, *quality,
+                           *slideTime, *sweepSpeed, *slidePunch, *accentDecay, *softAttack,
+                           *filterTrack, *filterFm, *filterDrive, *subOsc, *subLevel, *muffler,
+                           *driveType, *driveAmt, *driveTone, *driveMix, *drivePos,
+                           *lfoRate, *lfoSync, *lfoDepth, *lfoShape, *lfoDest;
+    } p {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OctoCidAudioProcessor)
 };

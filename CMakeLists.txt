@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 0.2.3 LANGUAGES C CXX)
+project(OctoCid VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,12 +47,15 @@ target_sources(OctoCid PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/Params.h
+    Source/Presets.h
     Source/dsp/DspUtils.h
     Source/dsp/Filters.h
     Source/dsp/Oscillator.h
     Source/dsp/DiodeLadder.h
     Source/dsp/NoteStack.h
     Source/dsp/AcidVoice.h
+    Source/dsp/Drive.h
+    Source/dsp/Lfo.h
 )
 
 target_include_directories(OctoCid PRIVATE Source)

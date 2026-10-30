@@ -1,24 +1,25 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Presets.h"
 
 //==============================================================================
 OctoCidAudioProcessor::OctoCidAudioProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "OctoCidState", createParameterLayout())
 {
-    pTune      = apvts.getRawParameterValue (ParamIDs::tune.getParamID());
-    pCutoff    = apvts.getRawParameterValue (ParamIDs::cutoff.getParamID());
-    pResonance = apvts.getRawParameterValue (ParamIDs::resonance.getParamID());
-    pEnvMod    = apvts.getRawParameterValue (ParamIDs::envMod.getParamID());
-    pDecay     = apvts.getRawParameterValue (ParamIDs::decay.getParamID());
-    pAccent    = apvts.getRawParameterValue (ParamIDs::accent.getParamID());
-    pWaveform  = apvts.getRawParameterValue (ParamIDs::waveform.getParamID());
-    pVolume    = apvts.getRawParameterValue (ParamIDs::volume.getParamID());
-    pAccentThr = apvts.getRawParameterValue (ParamIDs::accentThreshold.getParamID());
-    pQuality   = apvts.getRawParameterValue (ParamIDs::quality.getParamID());
-    pSlideTime  = apvts.getRawParameterValue (ParamIDs::slideTime.getParamID());
-    pSweepSpeed = apvts.getRawParameterValue (ParamIDs::sweepSpeed.getParamID());
-    pSlidePunch = apvts.getRawParameterValue (ParamIDs::slidePunch.getParamID());
+    using namespace ParamIDs;
+    p.tune = raw (tune);           p.cutoff = raw (cutoff);       p.resonance = raw (resonance);
+    p.envMod = raw (envMod);       p.decay = raw (decay);         p.accent = raw (accent);
+    p.waveform = raw (waveform);   p.volume = raw (volume);
+    p.accentThr = raw (accentThreshold);                          p.quality = raw (quality);
+    p.slideTime = raw (slideTime); p.sweepSpeed = raw (sweepSpeed); p.slidePunch = raw (slidePunch);
+    p.accentDecay = raw (accentDecay); p.softAttack = raw (softAttack);
+    p.filterTrack = raw (filterTrack); p.filterFm = raw (filterFm); p.filterDrive = raw (filterDrive);
+    p.subOsc = raw (subOsc);       p.subLevel = raw (subLevel);   p.muffler = raw (muffler);
+    p.driveType = raw (driveType); p.driveAmt = raw (driveAmt);   p.driveTone = raw (driveTone);
+    p.driveMix = raw (driveMix);   p.drivePos = raw (drivePos);
+    p.lfoRate = raw (lfoRate);     p.lfoSync = raw (lfoSync);     p.lfoDepth = raw (lfoDepth);
+    p.lfoShape = raw (lfoShape);   p.lfoDest = raw (lfoDest);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::createParameterLayout()
@@ -27,39 +28,60 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
     AudioProcessorValueTreeState::ParameterLayout layout;
 
     auto pct = AudioParameterFloatAttributes().withLabel ("%");
+    auto ms  = AudioParameterFloatAttributes().withLabel ("ms");
+    auto percent = [&] (const ParameterID& id, const char* name, float def)
+    {
+        layout.add (std::make_unique<AudioParameterFloat> (id, name, NormalisableRange<float> (0.0f, 100.0f, 0.1f), def, pct));
+    };
+    auto skewed = [] (float lo, float hi, float centre, float step)
+    {
+        NormalisableRange<float> r (lo, hi, step);
+        r.setSkewForCentre (centre);
+        return r;
+    };
 
+    // --- Panneau principal (ordre d'origine conservé)
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::tune, "Tune",
-        NormalisableRange<float> (-12.0f, 12.0f, 0.01f), 0.0f,
-        AudioParameterFloatAttributes().withLabel ("st")));
-
-    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::cutoff,    "Cutoff",    NormalisableRange<float> (0.0f, 100.0f, 0.1f), 50.0f, pct));
-    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::resonance, "Resonance", NormalisableRange<float> (0.0f, 100.0f, 0.1f), 50.0f, pct));
-    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::envMod,    "Env Mod",   NormalisableRange<float> (0.0f, 100.0f, 0.1f), 50.0f, pct));
-    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::decay,     "Decay",     NormalisableRange<float> (0.0f, 100.0f, 0.1f), 50.0f, pct));
-    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::accent,    "Accent",    NormalisableRange<float> (0.0f, 100.0f, 0.1f), 50.0f, pct));
-
-    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::waveform, "Waveform",
-        StringArray { "Saw", "Square" }, 0));
-
+        NormalisableRange<float> (-12.0f, 12.0f, 0.01f), 0.0f, AudioParameterFloatAttributes().withLabel ("st")));
+    percent (ParamIDs::cutoff,    "Cutoff",    50.0f);
+    percent (ParamIDs::resonance, "Resonance", 50.0f);
+    percent (ParamIDs::envMod,    "Env Mod",   50.0f);
+    percent (ParamIDs::decay,     "Decay",     50.0f);
+    percent (ParamIDs::accent,    "Accent",    50.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::waveform, "Waveform", StringArray { "Saw", "Square" }, 0));
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::volume, "Volume",
-        NormalisableRange<float> (-48.0f, 6.0f, 0.1f), -3.0f,
-        AudioParameterFloatAttributes().withLabel ("dB")));
-
+        NormalisableRange<float> (-48.0f, 6.0f, 0.1f), -3.0f, AudioParameterFloatAttributes().withLabel ("dB")));
     layout.add (std::make_unique<AudioParameterInt> (ParamIDs::accentThreshold, "Accent Velocity", 1, 127, 100));
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::quality, "Quality", StringArray { "Normal (2x)", "High (4x)" }, 0));
 
-    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::quality, "Quality",
-        StringArray { "Normal (2x)", "High (4x)" }, 0));
-
-    // Slime Mods (Devil Fish) — à leur réglage par défaut, le son est celui de l'original
+    // --- Slime Mods (à leur défaut : son d'origine)
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::slideTime, "Slide Time",
-        NormalisableRange<float> (60.0f, 360.0f, 1.0f), 60.0f,
-        AudioParameterFloatAttributes().withLabel ("ms")));
+        NormalisableRange<float> (60.0f, 360.0f, 1.0f), 60.0f, ms));
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::sweepSpeed, "Sweep Speed", StringArray { "Slow", "Normal", "Fast" }, 1));
+    percent (ParamIDs::slidePunch, "Slide Punch", 0.0f);
+    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::accentDecay, "Accent Decay", skewed (30.0f, 3000.0f, 300.0f, 1.0f), 200.0f, ms));
+    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::softAttack, "Soft Attack", skewed (0.3f, 30.0f, 3.0f, 0.01f), 3.0f, ms));
+    percent (ParamIDs::filterTrack, "Filter Tracking", 0.0f);
+    percent (ParamIDs::filterFm,    "Filter FM",       0.0f);
+    percent (ParamIDs::filterDrive, "Filter Drive",    0.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::subOsc, "Sub Osc", StringArray { "Off", "-1 oct", "-2 oct" }, 0));
+    percent (ParamIDs::subLevel, "Sub Level", 50.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::muffler, "Muffler", StringArray { "Off", "1", "2" }, 0));
 
-    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::sweepSpeed, "Sweep Speed",
-        StringArray { "Slow", "Normal", "Fast" }, 1));
+    // --- Drive
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::driveType, "Drive Type", StringArray { "Off", "Overdrive", "Distortion" }, 0));
+    percent (ParamIDs::driveAmt,  "Drive",      50.0f);
+    percent (ParamIDs::driveTone, "Drive Tone", 60.0f);
+    percent (ParamIDs::driveMix,  "Drive Mix", 100.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::drivePos, "Drive Position", StringArray { "Apres", "Avant" }, 0));
 
-    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::slidePunch, "Slide Punch",
-        NormalisableRange<float> (0.0f, 100.0f, 0.1f), 0.0f, pct));
+    // --- LFO
+    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::lfoRate, "LFO Rate", skewed (0.05f, 20.0f, 2.0f, 0.01f), 2.0f,
+        AudioParameterFloatAttributes().withLabel ("Hz")));
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::lfoSync, "LFO Sync", LfoSync::names, 0));
+    percent (ParamIDs::lfoDepth, "LFO Depth", 0.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::lfoShape, "LFO Shape", StringArray { "Sine", "Triangle", "Square", "S&H" }, 0));
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::lfoDest, "LFO Dest", StringArray { "Cutoff", "Resonance", "Pitch" }, 0));
 
     return layout;
 }
@@ -79,14 +101,17 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     monoBuffer.setSize (1, maxBlockSize, false, true, false);
 
-    currentQuality = (int) pQuality->load();
-    voice.prepare (sampleRate * (double) oversamplers[currentQuality]->getOversamplingFactor());
-    updateVoiceParams();
+    currentQuality = juce::jlimit (0, 1, (int) p.quality->load());
+    const double osRate = sampleRate * (double) oversamplers[currentQuality]->getOversamplingFactor();
+    voice.prepare (osRate);
+    drive.prepare (osRate);
+    updateParams();
     voice.reset();
+    drive.reset();
     toneShaper.prepare (sampleRate);
 
     outputGain.reset (sampleRate, 0.02);
-    outputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (pVolume->load()));
+    outputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (p.volume->load()));
 
     setLatencySamples ((int) std::round (oversamplers[currentQuality]->getLatencyInSamples()));
 }
@@ -98,21 +123,73 @@ bool OctoCidAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
 }
 
 //==============================================================================
-void OctoCidAudioProcessor::updateVoiceParams() noexcept
+void OctoCidAudioProcessor::updateParams() noexcept
 {
-    octocid::VoiceParams p;
-    p.tune      = pTune->load();
-    p.cutoff    = pCutoff->load()    * 0.01f;
-    p.resonance = pResonance->load() * 0.01f;
-    p.envMod    = pEnvMod->load()    * 0.01f;
-    p.decay     = pDecay->load()     * 0.01f;
-    p.accent    = pAccent->load()    * 0.01f;
-    p.squareMix = pWaveform->load() > 0.5f ? 1.0f : 0.0f;   // fondu lissé dans la voix
-    p.slideTimeMs = pSlideTime->load();
-    p.sweepSpeed  = juce::jlimit (0, 2, (int) pSweepSpeed->load());
-    p.slidePunch  = pSlidePunch->load() * 0.01f;
-    voice.setParams (p);
-    voice.setAccentThreshold ((int) pAccentThr->load());
+    octocid::VoiceParams v;
+    v.tune      = p.tune->load();
+    v.cutoff    = p.cutoff->load()    * 0.01f;
+    v.resonance = p.resonance->load() * 0.01f;
+    v.envMod    = p.envMod->load()    * 0.01f;
+    v.decay     = p.decay->load()     * 0.01f;
+    v.accent    = p.accent->load()    * 0.01f;
+    v.squareMix = p.waveform->load() > 0.5f ? 1.0f : 0.0f;   // fondu lissé dans la voix
+
+    v.slideTimeMs   = p.slideTime->load();
+    v.sweepSpeed    = juce::jlimit (0, 2, (int) p.sweepSpeed->load());
+    v.slidePunch    = p.slidePunch->load() * 0.01f;
+    v.accentDecayMs = p.accentDecay->load();
+    v.softAttackMs  = p.softAttack->load();
+    v.filterTrack   = p.filterTrack->load() * 0.01f;
+    v.filterFm      = p.filterFm->load() * 0.01f;
+    v.filterDrive   = p.filterDrive->load() * 0.01f;
+    v.subMode       = juce::jlimit (0, 2, (int) p.subOsc->load());
+    v.subLevel      = p.subLevel->load() * 0.01f;
+    v.muffler       = juce::jlimit (0, 2, (int) p.muffler->load());
+
+    v.lfoShape  = juce::jlimit (0, 3, (int) p.lfoShape->load());
+    v.lfoDest   = juce::jlimit (0, 2, (int) p.lfoDest->load());
+    v.lfoDepth  = p.lfoDepth->load() * 0.01f;
+    v.lfoRateHz = p.lfoRate->load();
+
+    // LFO synchronisé : fréquence tirée du tempo du DAW
+    const int sync = juce::jlimit (0, LfoSync::names.size() - 1, (int) p.lfoSync->load());
+    if (sync > 0)
+    {
+        double bpm = 120.0;
+        if (auto* ph = getPlayHead())
+            if (auto pos = ph->getPosition())
+                if (auto b = pos->getBpm())
+                    bpm = *b;
+        v.lfoRateHz = (float) (bpm / 60.0 / LfoSync::beats[sync]);
+    }
+
+    voice.setParams (v);
+    voice.setAccentThreshold ((int) p.accentThr->load());
+
+    drive.setParams ((int) p.driveType->load(), p.driveAmt->load() * 0.01f,
+                     p.driveTone->load() * 0.01f, p.driveMix->load() * 0.01f);
+
+    const bool pre = p.drivePos->load() > 0.5f;
+    if (pre != drivePreVca)
+    {
+        drivePreVca = pre;
+        drive.reset();               // les états du Drive ne valent rien d'un emplacement à l'autre
+    }
+    voice.setPreVcaDrive (drivePreVca ? &drive : nullptr);
+}
+
+// En lecture, la phase du LFO synchronisé est recalée sur la position du DAW
+void OctoCidAudioProcessor::updateLfoSync() noexcept
+{
+    const int sync = (int) p.lfoSync->load();
+    if (sync <= 0 || sync >= LfoSync::names.size())
+        return;
+
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            if (pos->getIsPlaying())
+                if (auto ppq = pos->getPpqPosition())
+                    voice.syncLfo ((float) std::fmod (*ppq / LfoSync::beats[sync], 1.0));
 }
 
 void OctoCidAudioProcessor::handleMidi (const juce::MidiMessage& msg) noexcept
@@ -145,7 +222,6 @@ void OctoCidAudioProcessor::renderChunk (float* out, int numSamples, const juce:
     juce::dsp::AudioBlock<float> mono (monoBuffer.getArrayOfWritePointers(), 1, (size_t) numSamples);
     mono.clear();
 
-    // On récupère le tampon suréchantillonné et on y écrit directement la voix
     auto up = os.processSamplesUp (mono);
     float* osData = up.getChannelPointer (0);
 
@@ -161,7 +237,7 @@ void OctoCidAudioProcessor::renderChunk (float* out, int numSamples, const juce:
         }
 
         for (int j = 0; j < factor; ++j)
-            osData[i * factor + j] = voice.process();
+            osData[i * factor + j] = drivePreVca ? voice.process() : drive.process (voice.process());
     }
 
     os.processSamplesDown (mono);
@@ -179,28 +255,91 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     const int numSamples = buffer.getNumSamples();
     buffer.clear();
 
-    // Changement de qualité : la voix passe à la nouvelle fréquence sans couper le son
-    const int q = (int) pQuality->load();
+    // Changement de qualité : voix et Drive passent à la nouvelle fréquence sans couper le son
+    const int q = juce::jlimit (0, 1, (int) p.quality->load());
     if (q != currentQuality)
     {
         currentQuality = q;
         oversamplers[q]->reset();
-        voice.setSampleRate (hostSampleRate * (double) oversamplers[q]->getOversamplingFactor());
+        const double osRate = hostSampleRate * (double) oversamplers[q]->getOversamplingFactor();
+        voice.setSampleRate (osRate);
+        drive.prepare (osRate);
     }
 
-    updateVoiceParams();
+    updateParams();
+    updateLfoSync();
 
     float* left = buffer.getWritePointer (0);
     for (int pos = 0; pos < numSamples; pos += maxBlockSize)
         renderChunk (left + pos, juce::jmin (maxBlockSize, numSamples - pos), midi, pos);
 
-    // Volume lissé
-    outputGain.setTargetValue (juce::Decibels::decibelsToGain (pVolume->load(), -60.0f) + 1.0e-6f);
+    outputGain.setTargetValue (juce::Decibels::decibelsToGain (p.volume->load(), -60.0f) + 1.0e-6f);
     for (int i = 0; i < numSamples; ++i)
-        left[i] *= outputGain.getNextValue();
+    {
+        // Volume, puis limiteur de sécurité : transparent sous -3 dBFS, plafond à -0,1 dBFS
+        float x = left[i] * outputGain.getNextValue();
+        const float ax = std::abs (x);
+        if (ax > kKnee)
+            x = std::copysign (kKnee + (kCeiling - kKnee) * std::tanh ((ax - kKnee) / (kCeiling - kKnee)), x);
+        left[i] = x;
+    }
 
     for (int ch = 1; ch < buffer.getNumChannels(); ++ch)
         buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
+}
+
+//==============================================================================
+int OctoCidAudioProcessor::getNumPrograms()
+{
+    return FactoryPresets::count;
+}
+
+const juce::String OctoCidAudioProcessor::getProgramName (int index)
+{
+    if (index < 0 || index >= FactoryPresets::count)
+        return {};
+    return juce::String::fromUTF8 (FactoryPresets::list[index].name);
+}
+
+juce::String OctoCidAudioProcessor::getProgramDescription (int index) const
+{
+    if (index < 0 || index >= FactoryPresets::count)
+        return {};
+    return juce::String::fromUTF8 (FactoryPresets::list[index].tag);
+}
+
+void OctoCidAudioProcessor::setCurrentProgram (int index)
+{
+    // Le DAW renvoie parfois le programme courant après un rechargement d'état :
+    // on ne l'applique pas une deuxième fois pour ne pas écraser les retouches.
+    if (index < 0 || index >= FactoryPresets::count || index == currentProgram)
+        return;
+
+    applyProgram (index);
+}
+
+void OctoCidAudioProcessor::applyProgram (int index)
+{
+    if (index < 0 || index >= FactoryPresets::count)
+        return;
+
+    currentProgram = index;
+
+    // Tout le son repart des valeurs par défaut ; la qualité et le seuil d'accent
+    // restent ceux de l'utilisateur.
+    static const juce::StringArray keep { "quality", "accentthr" };
+    for (auto* param : getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (param))
+            if (! keep.contains (rp->getParameterID()))
+                rp->setValueNotifyingHost (rp->getDefaultValue());
+
+    for (const auto& v : FactoryPresets::list[index].values)
+    {
+        if (v.id == nullptr)
+            break;
+        if (auto* rp = apvts.getParameter (v.id))
+            rp->setValueNotifyingHost (rp->convertTo0to1 (v.v));
+    }
 }
 
 //==============================================================================
@@ -213,6 +352,7 @@ juce::AudioProcessorEditor* OctoCidAudioProcessor::createEditor()
 void OctoCidAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
+    state.setProperty ("program", currentProgram, nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -221,7 +361,11 @@ void OctoCidAudioProcessor::setStateInformation (const void* data, int sizeInByt
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (apvts.state.getType()))
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
+        {
+            auto tree = juce::ValueTree::fromXml (*xml);
+            currentProgram = juce::jlimit (0, FactoryPresets::count - 1, (int) tree.getProperty ("program", 0));
+            apvts.replaceState (tree);
+        }
 }
 
 //==============================================================================
