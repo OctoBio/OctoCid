@@ -80,6 +80,9 @@ private:
     std::atomic<float>* pVolume = nullptr;
     std::atomic<float>* pAccentThr = nullptr;
     std::atomic<float>* pQuality = nullptr;
+    std::atomic<float>* pSlideTime = nullptr;
+    std::atomic<float>* pSweepSpeed = nullptr;
+    std::atomic<float>* pSlidePunch = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OctoCidAudioProcessor)
 };

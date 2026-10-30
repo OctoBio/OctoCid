@@ -41,7 +41,8 @@ private:
     juce::LookAndFeel_V4 lookAndFeel;
 
     Knob tune, cutoff, resonance, envMod, decay, accent, volume, accentThr;
-    Choice waveform, quality;
+    Knob slideTime, slidePunch;
+    Choice waveform, quality, sweepSpeed;
 
     int displayedNote = -1;
     bool displayedAccent = false;

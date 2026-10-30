@@ -16,6 +16,9 @@ OctoCidAudioProcessor::OctoCidAudioProcessor()
     pVolume    = apvts.getRawParameterValue (ParamIDs::volume.getParamID());
     pAccentThr = apvts.getRawParameterValue (ParamIDs::accentThreshold.getParamID());
     pQuality   = apvts.getRawParameterValue (ParamIDs::quality.getParamID());
+    pSlideTime  = apvts.getRawParameterValue (ParamIDs::slideTime.getParamID());
+    pSweepSpeed = apvts.getRawParameterValue (ParamIDs::sweepSpeed.getParamID());
+    pSlidePunch = apvts.getRawParameterValue (ParamIDs::slidePunch.getParamID());
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::createParameterLayout()
@@ -46,6 +49,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
 
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::quality, "Quality",
         StringArray { "Normal (2x)", "High (4x)" }, 0));
+
+    // Slime Mods (Devil Fish) — à leur réglage par défaut, le son est celui de l'original
+    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::slideTime, "Slide Time",
+        NormalisableRange<float> (60.0f, 360.0f, 1.0f), 60.0f,
+        AudioParameterFloatAttributes().withLabel ("ms")));
+
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::sweepSpeed, "Sweep Speed",
+        StringArray { "Slow", "Normal", "Fast" }, 1));
+
+    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::slidePunch, "Slide Punch",
+        NormalisableRange<float> (0.0f, 100.0f, 0.1f), 0.0f, pct));
 
     return layout;
 }
@@ -94,6 +108,9 @@ void OctoCidAudioProcessor::updateVoiceParams() noexcept
     p.decay     = pDecay->load()     * 0.01f;
     p.accent    = pAccent->load()    * 0.01f;
     p.squareMix = pWaveform->load() > 0.5f ? 1.0f : 0.0f;   // fondu lissé dans la voix
+    p.slideTimeMs = pSlideTime->load();
+    p.sweepSpeed  = juce::jlimit (0, 2, (int) pSweepSpeed->load());
+    p.slidePunch  = pSlidePunch->load() * 0.01f;
     voice.setParams (p);
     voice.setAccentThreshold ((int) pAccentThr->load());
 }

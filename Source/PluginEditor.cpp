@@ -42,6 +42,10 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     setupChoice (waveform, ParamIDs::waveform, "Waveform");
     setupChoice (quality,  ParamIDs::quality,  "Qualite");
 
+    setupKnob (slideTime,  ParamIDs::slideTime,  "Slide Time");
+    setupKnob (slidePunch, ParamIDs::slidePunch, "Slide Punch");
+    setupChoice (sweepSpeed, ParamIDs::sweepSpeed, "Sweep Speed");
+
     setSize (1000, 620);
     setResizable (false, false);
     startTimerHz (30);
@@ -127,6 +131,25 @@ void OctoCidAudioProcessorEditor::resized()
         quality.box.setBounds (cell.withSizeKeepingCentre (w + 20, 28));
     }
 
+    // Avant-première du tiroir SLIME MODS
+    auto row3 = juce::Rectangle<int> (350, 420, 610, 130);
+    const int w3 = row3.getWidth() / 3;
+    {
+        auto cell = row3.withWidth (w3).reduced (8, 0);
+        slideTime.label.setBounds (cell.removeFromTop (24));
+        slideTime.slider.setBounds (cell);
+    }
+    {
+        auto cell = row3.withX (row3.getX() + w3).withWidth (w3).reduced (8, 0);
+        slidePunch.label.setBounds (cell.removeFromTop (24));
+        slidePunch.slider.setBounds (cell);
+    }
+    {
+        auto cell = row3.withX (row3.getX() + 2 * w3).withWidth (w3).reduced (8, 0);
+        sweepSpeed.label.setBounds (cell.removeFromTop (24));
+        sweepSpeed.box.setBounds (cell.withSizeKeepingCentre (w3 - 30, 28));
+    }
+
     ledArea = { 870, 60, 60, 60 };
 }
 
@@ -161,11 +184,16 @@ void OctoCidAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (panel);
     g.fillRoundedRectangle (juce::Rectangle<float> (20, 215, 960, 175), 14.0f);
     g.fillRoundedRectangle (juce::Rectangle<float> (20, 405, 290, 155), 14.0f);
+    g.setColour (slime.withAlpha (0.12f));
+    g.fillRoundedRectangle (juce::Rectangle<float> (330, 405, 650, 155), 14.0f);
+    g.setColour (slime);
+    g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+    g.drawText ("SLIME MODS", juce::Rectangle<int> (344, 408, 200, 14), juce::Justification::centredLeft);
 
     g.setColour (dim);
     g.setFont (juce::FontOptions (13.0f));
     g.drawText ("Clavier : notes qui se chevauchent = slide, velocite >= seuil = accent",
-                juce::Rectangle<int> (330, 470, 640, 24), juce::Justification::centredLeft);
+                juce::Rectangle<int> (40, 575, 900, 24), juce::Justification::centredLeft);
 
     // LED MIDI : verte sur une note, crème plus vive sur un accent
     const bool on = displayedNote >= 0;

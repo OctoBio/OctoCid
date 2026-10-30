@@ -19,4 +19,9 @@ namespace ParamIDs
 
     inline const juce::ParameterID accentThreshold { "accentthr", 1 };
     inline const juce::ParameterID quality         { "quality",   1 };
+
+    // Slime Mods (Devil Fish)
+    inline const juce::ParameterID slideTime  { "slidetime",  1 };
+    inline const juce::ParameterID sweepSpeed { "sweepspeed", 1 };
+    inline const juce::ParameterID slidePunch { "slidepunch", 1 };
 }
