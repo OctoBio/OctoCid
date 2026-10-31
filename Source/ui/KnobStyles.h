@@ -251,4 +251,204 @@ namespace KnobStyles
             }
         }
     }
+
+    //==========================================================================
+    // Variantes « tête de poulet »
+    //==========================================================================
+    inline constexpr int chickenCount = 7;
+    inline const char* chickenNames[chickenCount] = {
+        "A  Bakelite noire", "B  Imprime creme", "C  Vert bave", "D  Fin + echelle 0-10",
+        "E  Jupe graduee", "F  BD main levee", "G  Geometrique" };
+
+    // Silhouette : disque + pointe vers le haut (angle 0 = midi)
+    inline juce::Path chickenShape (float br, float tip, float width = 0.62f)
+    {
+        juce::Path head;
+        head.addEllipse (-br, -br, br * 2, br * 2);
+        juce::Path beak;
+        beak.startNewSubPath (-br * width, -br * 0.55f);
+        beak.quadraticTo (-br * width * 0.55f, -tip * 0.88f, 0.0f, -tip);
+        beak.quadraticTo (br * width * 0.55f, -tip * 0.88f, br * width, -br * 0.55f);
+        beak.closeSubPath();
+        head.addPath (beak);
+        return head;
+    }
+
+    // Arc de valeur fin (depuis le début, ou depuis midi en bipolaire)
+    inline void valueArc (juce::Graphics& g, juce::Point<float> c, float rr, float start, float end, float a,
+                          bool bipolar, juce::Colour col, float thick)
+    {
+        const float from = bipolar ? (start + end) * 0.5f : start;
+        if (std::abs (a - from) < 0.01f) return;
+        juce::Path arc;
+        arc.addCentredArc (c.x, c.y, rr, rr, 0.0f, juce::jmin (from, a), juce::jmax (from, a), true);
+        g.setColour (col);
+        g.strokePath (arc, juce::PathStrokeType (thick, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
+    inline void chicken (int v, juce::Graphics& g, juce::Rectangle<float> bounds, float pos,
+                         float start, float end, bool bipolar, bool enabled, int seed = 1)
+    {
+        using namespace OctoColours;
+        const float r = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
+        const auto c = bounds.getCentre();
+        const float a = start + pos * (end - start);
+        const auto paper = juce::Colour (0xfff6efdf);
+        const auto bake  = juce::Colour (0xff2a2725);
+        const auto inkC = enabled ? ink : dim;
+        const auto acc  = enabled ? slime : dim;
+        const float lw = juce::jmax (1.4f, r * 0.07f);
+        const auto xf = juce::AffineTransform::rotation (a).translated (c);
+
+        switch (juce::jlimit (0, chickenCount - 1, v))
+        {
+            case 0:   // A — bakélite noire, filet crème (la version choisie)
+            {
+                drawTicks (g, c, r * 0.84f, r * 0.96f, start, end, 11, inkC.withAlpha (0.85f), lw * 0.55f);
+                valueArc (g, c, r * 0.76f, start, end, a, bipolar, acc.withAlpha (0.8f), lw * 0.6f);
+                const float br = r * 0.42f;
+                auto head = chickenShape (br, r * 0.74f);
+                g.setColour (juce::Colour (0x44000000));
+                g.fillPath (head, xf.translated (0.0f, r * 0.05f));
+                g.setColour (enabled ? bake : dim);
+                g.fillPath (head, xf);
+                g.setColour (juce::Colour (0x16ffffff));
+                g.fillEllipse (juce::Rectangle<float> (br * 1.1f, br * 0.7f).withCentre (c.translated (-br * 0.25f, -br * 0.35f)));
+                g.setColour (paper);
+                g.drawLine ({ c.getPointOnCircumference (br * 0.15f, a), c.getPointOnCircumference (r * 0.68f, a) }, lw * 0.9f);
+                break;
+            }
+
+            case 1:   // B — imprimé : corps crème, contour encre, ombre pleine décalée
+            {
+                drawTicks (g, c, r * 0.84f, r * 0.96f, start, end, 11, inkC, lw * 0.6f);
+                valueArc (g, c, r * 0.77f, start, end, a, bipolar, acc, lw * 0.75f);
+                const float br = r * 0.44f;
+                auto head = chickenShape (br, r * 0.72f, 0.66f);
+                g.setColour (inkC);
+                g.fillPath (head, xf.translated (r * 0.07f, r * 0.08f));
+                g.strokePath (head, juce::PathStrokeType (lw * 1.7f, juce::PathStrokeType::curved), xf);
+                g.setColour (paper);
+                g.fillPath (head, xf);
+                g.setColour (inkC);
+                g.drawLine ({ c.getPointOnCircumference (br * 0.1f, a), c.getPointOnCircumference (r * 0.62f, a) }, lw * 1.1f);
+                break;
+            }
+
+            case 2:   // C — corps vert bave, filet encre
+            {
+                drawTicks (g, c, r * 0.84f, r * 0.96f, start, end, 11, inkC.withAlpha (0.85f), lw * 0.55f);
+                const float br = r * 0.44f;
+                auto head = chickenShape (br, r * 0.76f);
+                g.setColour (juce::Colour (0x40000000));
+                g.fillPath (head, xf.translated (0.0f, r * 0.06f));
+                g.setColour (inkC);
+                g.strokePath (head, juce::PathStrokeType (lw * 1.4f), xf);
+                g.setColour (acc);
+                g.fillPath (head, xf);
+                g.setColour (juce::Colour (0x30ffffff));
+                g.fillEllipse (juce::Rectangle<float> (br * 1.0f, br * 0.6f).withCentre (c.translated (-br * 0.25f, -br * 0.4f)));
+                g.setColour (inkC);
+                g.drawLine ({ c.getPointOnCircumference (br * 0.1f, a), c.getPointOnCircumference (r * 0.68f, a) }, lw * 1.0f);
+                break;
+            }
+
+            case 3:   // D — fin, longue pointe, échelle numérotée 0-10
+            {
+                const float tr = r * 0.80f;
+                drawTicks (g, c, tr * 0.93f, tr, start, end, 21, inkC.withAlpha (0.7f), lw * 0.4f, false);
+                g.setFont (juce::FontOptions (juce::jmax (7.0f, r * 0.20f), juce::Font::bold));
+                g.setColour (inkC.withAlpha (0.85f));
+                for (int i = 0; i <= 10; i += 2)
+                {
+                    const float aa = start + (float) i / 10.0f * (end - start);
+                    const auto pt = c.getPointOnCircumference (r * 0.94f, aa);
+                    const int lab = bipolar ? i - 5 : i;
+                    g.drawText (juce::String (lab), juce::Rectangle<float> (r * 0.4f, r * 0.24f).withCentre (pt),
+                                juce::Justification::centred);
+                }
+                const float br = r * 0.34f;
+                auto head = chickenShape (br, r * 0.74f, 0.5f);
+                g.setColour (juce::Colour (0x44000000));
+                g.fillPath (head, xf.translated (0.0f, r * 0.05f));
+                g.setColour (enabled ? bake : dim);
+                g.fillPath (head, xf);
+                g.setColour (acc);
+                g.drawLine ({ c.getPointOnCircumference (br * 0.4f, a), c.getPointOnCircumference (r * 0.70f, a) }, lw * 0.75f);
+                break;
+            }
+
+            case 4:   // E — jupe graduée (disque crème gradué qui tourne) + tête noire
+            {
+                const float sr = r * 0.86f;
+                g.setColour (juce::Colour (0x40000000));
+                g.fillEllipse (juce::Rectangle<float> (sr * 2, sr * 2).withCentre (c.translated (0.0f, r * 0.05f)));
+                g.setColour (panelHi.interpolatedWith (paper, 0.5f));
+                g.fillEllipse (juce::Rectangle<float> (sr * 2, sr * 2).withCentre (c));
+                g.setColour (inkC);
+                g.drawEllipse (juce::Rectangle<float> (sr * 2, sr * 2).withCentre (c), lw * 0.6f);
+                // graduations fixes sur la jupe, l'arc de valeur en vert
+                drawTicks (g, c, sr * 0.80f, sr * 0.93f, start, end, 11, inkC.withAlpha (0.7f), lw * 0.45f, false);
+                valueArc (g, c, sr * 0.72f, start, end, a, bipolar, acc, lw * 0.7f);
+                const float br = r * 0.36f;
+                auto head = chickenShape (br, sr * 0.95f, 0.55f);
+                g.setColour (enabled ? bake : dim);
+                g.fillPath (head, xf);
+                g.setColour (paper);
+                g.drawLine ({ c.getPointOnCircumference (br * 0.2f, a), c.getPointOnCircumference (sr * 0.86f, a) }, lw * 0.85f);
+                break;
+            }
+
+            case 5:   // F — BD : contour main levée, trame de points en ombre
+            {
+                drawTicks (g, c, r * 0.84f, r * 0.96f, start, end, 11, inkC, lw * 0.6f);
+                valueArc (g, c, r * 0.77f, start, end, a, bipolar, acc, lw * 0.8f);
+                const float br = r * 0.45f;
+                juce::Path head = wobblyCircle ({}, br, 0.035f, seed);
+                juce::Path beak;
+                beak.startNewSubPath (-br * 0.6f, -br * 0.6f);
+                beak.quadraticTo (-br * 0.25f, -r * 0.62f, br * 0.04f, -r * 0.73f);
+                beak.quadraticTo (br * 0.38f, -r * 0.62f, br * 0.64f, -br * 0.52f);
+                beak.closeSubPath();
+                head.addPath (beak);
+                // trame (points) décalée = ombre
+                {
+                    juce::Graphics::ScopedSaveState ss (g);
+                    juce::Path sh (head);
+                    sh.applyTransform (xf.translated (r * 0.09f, r * 0.10f));
+                    g.reduceClipRegion (sh);
+                    g.setColour (inkC.withAlpha (0.75f));
+                    const float step = juce::jmax (2.6f, r * 0.11f);
+                    auto bb = sh.getBounds();
+                    for (float yy = bb.getY(); yy < bb.getBottom(); yy += step)
+                        for (float xx = bb.getX() + (std::fmod (yy, step * 2.0f) < step ? 0.0f : step * 0.5f); xx < bb.getRight(); xx += step)
+                            g.fillEllipse (xx, yy, step * 0.45f, step * 0.45f);
+                }
+                g.setColour (inkC);
+                g.strokePath (head, juce::PathStrokeType (lw * 2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), xf);
+                g.setColour (paper);
+                g.fillPath (head, xf);
+                g.setColour (inkC);
+                g.fillEllipse (juce::Rectangle<float> (lw * 2.2f, lw * 2.2f).withCentre (c.getPointOnCircumference (r * 0.50f, a)));
+                break;
+            }
+
+            default:  // G — géométrique : disque plat + triangle franc, sans contour
+            {
+                drawTicks (g, c, r * 0.86f, r * 0.96f, start, end, 11, inkC.withAlpha (0.6f), lw * 0.5f, false);
+                valueArc (g, c, r * 0.78f, start, end, a, bipolar, acc, lw * 0.9f);
+                const float br = r * 0.44f;
+                juce::Path head;
+                head.addEllipse (-br, -br, br * 2, br * 2);
+                head.addTriangle (br * 0.7f, -br * 0.5f, -br * 0.7f, -br * 0.5f, 0.0f, -r * 0.74f);
+                head.setUsingNonZeroWinding (false);
+                { juce::Path t; t.addEllipse (-br, -br, br * 2, br * 2); juce::Path tri; tri.addTriangle (-br * 0.7f, -br * 0.5f, br * 0.7f, -br * 0.5f, 0.0f, -r * 0.74f); head = t; g.setColour (enabled ? ink : dim); g.fillPath (tri, xf); }
+                g.setColour (enabled ? ink : dim);
+                g.fillPath (head, xf);
+                g.setColour (acc);
+                g.fillEllipse (juce::Rectangle<float> (lw * 2.0f, lw * 2.0f).withCentre (c.getPointOnCircumference (r * 0.58f, a)));
+                break;
+            }
+        }
+    }
 }

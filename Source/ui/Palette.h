@@ -80,3 +80,54 @@ namespace OctoPrefs
         f.saveIfNeeded();
     }
 }
+
+//==============================================================================
+// Style général de l'interface (arrondis, contours, ombres, titres, potards).
+// Plusieurs directions à comparer ; le choix est une préférence utilisateur.
+//==============================================================================
+namespace OctoLook
+{
+    struct Look
+    {
+        const char* name;
+        int   knob;       // variante de potard « tête de poulet » (KnobStyles::chicken)
+        float panelR;     // arrondi des panneaux
+        float ctrlR;      // arrondi des boutons / menus / sélecteurs
+        float outline;    // épaisseur des contours
+        int   shadow;     // 0 douce, 1 décalée « impression », 2 aucune
+        bool  screws;     // vis aux coins des panneaux (façon rack)
+        int   title;      // 0 simple, 1 étiquette pleine, 2 gravé souligné, 3 bulle
+    };
+
+    inline const Look looks[] =
+    {
+        { "Atelier (impression)", 1,  6.0f, 4.0f, 2.0f, 1, false, 1 },
+        { "Rack vintage",         3,  2.0f, 3.0f, 1.5f, 2, true,  2 },
+        { "BD bulles",            5, 16.0f, 10.0f, 2.5f, 1, false, 3 },
+    };
+    inline constexpr int numLooks = (int) (sizeof (looks) / sizeof (looks[0]));
+    inline int current = 0;
+    inline const Look& get() { return looks[juce::jlimit (0, numLooks - 1, current)]; }
+    inline void apply (int index) { current = juce::jlimit (0, numLooks - 1, index); }
+
+    // Rectangle arrondi avec l'ombre et le contour du style courant
+    inline void shape (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale = 1.0f)
+    {
+        using namespace OctoColours;
+        const auto& L = get();
+        if (L.shadow == 0)
+        {
+            g.setColour (ink.withAlpha (0.4f));
+            g.fillRoundedRectangle (r.translated (0.0f, 2.0f), radius);
+        }
+        else if (L.shadow == 1)
+        {
+            g.setColour (ink);
+            g.fillRoundedRectangle (r.translated (2.5f * outlineScale, 2.5f * outlineScale), radius);
+        }
+        g.setColour (fill);
+        g.fillRoundedRectangle (r, radius);
+        g.setColour (ink);
+        g.drawRoundedRectangle (r, radius, L.outline * outlineScale);
+    }
+}

@@ -21,12 +21,8 @@ public:
         auto r = getLocalBounds().toFloat();
 
         // Fond de la zone : panneau en creux
-        g.setColour (ink.withAlpha (0.45f));
-        g.fillRoundedRectangle (r.reduced (1.0f).translated (0.0f, 3.0f), 14.0f);
-        g.setColour (background.interpolatedWith (panel, 0.5f));
-        g.fillRoundedRectangle (r.reduced (1.0f), 14.0f);
-        g.setColour (ink);
-        g.drawRoundedRectangle (r.reduced (1.0f), 14.0f, 2.0f);
+        OctoLook::shape (g, r.reduced (1.0f).withTrimmedRight (2.0f).withTrimmedBottom (2.0f),
+                         OctoLook::get().panelR, background.interpolatedWith (panel, 0.5f));
 
         const float s = juce::jmin (r.getWidth() / 200.0f, r.getHeight() / 140.0f);
         const auto o = r.getCentre().translated (-100.0f * s, -70.0f * s);

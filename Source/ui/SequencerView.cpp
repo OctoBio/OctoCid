@@ -660,7 +660,7 @@ void SequencerView::paint (juce::Graphics& g)
 
     // Fond de la grille
     g.setColour (background.withAlpha (0.55f));
-    g.fillRoundedRectangle (gridArea.toFloat().expanded (4.0f), 8.0f);
+    g.fillRoundedRectangle (gridArea.toFloat().expanded (4.0f), juce::jmin (8.0f, OctoLook::get().ctrlR));
 
     // Libellés des notes
     g.setFont (juce::FontOptions ((float) juce::jmin (11, noteRowH), juce::Font::bold));
@@ -790,9 +790,9 @@ void SequencerView::paint (juce::Graphics& g)
 
     // Glisser-déposer MIDI
     g.setColour (slime.withAlpha (0.15f));
-    g.fillRoundedRectangle (midiDragArea.toFloat(), 7.0f);
+    g.fillRoundedRectangle (midiDragArea.toFloat(), OctoLook::get().ctrlR);
     g.setColour (slime);
-    g.drawRoundedRectangle (midiDragArea.toFloat().reduced (1.0f), 7.0f, 1.5f);
+    g.drawRoundedRectangle (midiDragArea.toFloat().reduced (1.0f), OctoLook::get().ctrlR, OctoLook::get().outline * 0.75f);
     g.setFont (juce::FontOptions (12.5f, juce::Font::bold));
     g.drawFittedText ("MIDI >> glisser vers le DAW", midiDragArea, juce::Justification::centred, 1, 0.8f);
 }

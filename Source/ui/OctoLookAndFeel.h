@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "Palette.h"
+#include "KnobStyles.h"
 
 //==============================================================================
 // Style OctoCid : sobre, cartoon, tout en vectoriel (juce::Path).
@@ -59,48 +60,9 @@ public:
     void drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h, float pos,
                            float startAngle, float endAngle, juce::Slider& s) override
     {
-        using namespace OctoColours;
-        const auto bounds = juce::Rectangle<int> (x, y, w, h).toFloat().reduced (3.0f);
-        const float r = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
-        const auto c = bounds.getCentre();
-        const float trackR = r - 2.5f;
-        const float thick = juce::jmax (3.0f, r * 0.12f);
-        const float angle = startAngle + pos * (endAngle - startAngle);
         const bool bipolar = (bool) s.getProperties().getWithDefault ("bipolar", false);
-        const bool enabled = s.isEnabled();
-
-        juce::Path track;
-        track.addCentredArc (c.x, c.y, trackR, trackR, 0.0f, startAngle, endAngle, true);
-        g.setColour (ink.withAlpha (0.55f));
-        g.strokePath (track, juce::PathStrokeType (thick + 2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (dim.withAlpha (0.55f));
-        g.strokePath (track, juce::PathStrokeType (thick, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-        const float from = bipolar ? (startAngle + endAngle) * 0.5f : startAngle;
-        if (std::abs (angle - from) > 0.01f)
-        {
-            juce::Path val;
-            val.addCentredArc (c.x, c.y, trackR, trackR, 0.0f, juce::jmin (from, angle), juce::jmax (from, angle), true);
-            g.setColour (enabled ? slime : dim);
-            g.strokePath (val, juce::PathStrokeType (thick, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        }
-
-        // Capuchon
-        const float capR = trackR - thick - 3.0f;
-        g.setColour (ink.withAlpha (0.35f));
-        g.fillEllipse (juce::Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (c.translated (0.0f, 2.0f)));
-        g.setColour (panelHi);
-        g.fillEllipse (juce::Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (c));
-        g.setColour (cream.withAlpha (0.07f));
-        g.fillEllipse (juce::Rectangle<float> (capR * 1.3f, capR * 1.0f).withCentre (c.translated (-capR * 0.2f, -capR * 0.35f)));
-        g.setColour (ink);
-        g.drawEllipse (juce::Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (c), juce::jmax (1.5f, r * 0.06f));
-
-        // Index
-        const auto p1 = c.getPointOnCircumference (capR * 0.25f, angle);
-        const auto p2 = c.getPointOnCircumference (capR * 0.82f, angle);
-        g.setColour (enabled ? cream : dim);
-        g.drawLine ({ p1, p2 }, juce::jmax (2.5f, r * 0.1f));
+        KnobStyles::chicken (OctoLook::get().knob, g, juce::Rectangle<int> (x, y, w, h).toFloat().reduced (2.0f),
+                             pos, startAngle, endAngle, bipolar, s.isEnabled(), (int) (reinterpret_cast<juce::pointer_sized_int> (&s) & 0xffff));
     }
 
     //==========================================================================
@@ -135,17 +97,12 @@ public:
                                bool over, bool down) override
     {
         using namespace OctoColours;
-        auto r = b.getLocalBounds().toFloat().reduced (1.0f);
-        const float rad = juce::jmin (7.0f, r.getHeight() * 0.35f);
+        auto r = b.getLocalBounds().toFloat().reduced (1.0f).withTrimmedRight (2.0f).withTrimmedBottom (2.0f);
+        const float rad = juce::jmin (OctoLook::get().ctrlR, r.getHeight() * 0.5f);
         auto fill = bg;
-        if (down) fill = fill.darker (0.15f);
+        if (down) { fill = fill.darker (0.15f); r = r.translated (1.0f, 1.0f); }
         else if (over) fill = fill.brighter (0.08f);
-        g.setColour (ink.withAlpha (0.5f));
-        g.fillRoundedRectangle (r.translated (0.0f, 1.5f), rad);
-        g.setColour (fill);
-        g.fillRoundedRectangle (r, rad);
-        g.setColour (ink);
-        g.drawRoundedRectangle (r, rad, 1.5f);
+        OctoLook::shape (g, r, rad, fill, 0.75f);
     }
 
     juce::Font getTextButtonFont (juce::TextButton&, int h) override
@@ -180,13 +137,9 @@ public:
     void drawComboBox (juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& box) override
     {
         using namespace OctoColours;
-        auto r = juce::Rectangle<float> (0, 0, (float) w, (float) h).reduced (1.0f);
-        g.setColour (ink.withAlpha (0.5f));
-        g.fillRoundedRectangle (r.translated (0.0f, 1.5f), 6.0f);
-        g.setColour (box.isMouseOver (true) ? panelHi.brighter (0.06f) : panelHi);
-        g.fillRoundedRectangle (r, 6.0f);
-        g.setColour (ink);
-        g.drawRoundedRectangle (r, 6.0f, 1.5f);
+        auto r = juce::Rectangle<float> (0, 0, (float) w, (float) h).reduced (1.0f).withTrimmedRight (2.0f).withTrimmedBottom (2.0f);
+        const float rad = juce::jmin (OctoLook::get().ctrlR, r.getHeight() * 0.5f);
+        OctoLook::shape (g, r, rad, box.isMouseOver (true) ? panelHi.brighter (0.06f) : panelHi, 0.75f);
         juce::Path arrow;
         const float ax = (float) w - 13.0f, ay = (float) h * 0.5f;
         arrow.startNewSubPath (ax - 4.0f, ay - 2.0f);

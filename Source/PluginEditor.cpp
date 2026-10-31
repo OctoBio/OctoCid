@@ -137,6 +137,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     using namespace ParamIDs;
 
     OctoColours::applyTheme (OctoPrefs::getInt ("theme", 0));
+    OctoLook::apply (OctoPrefs::getInt ("look", 0));
     lnf.refreshColours();
     setLookAndFeel (&lnf);
     addAndMakeVisible (content);
@@ -357,11 +358,21 @@ void OctoCidAudioProcessorEditor::showMenu()
     menu.addSectionHeader ("OctoCid v" JucePlugin_VersionString);
     menu.addSubMenu ("Zoom", zoom);
     menu.addSubMenu ("Palette", theme);
+    juce::PopupMenu look;
+    for (int i = 0; i < OctoLook::numLooks; ++i)
+        look.addItem (300 + i, juce::String::fromUTF8 (OctoLook::looks[i].name), true, i == OctoLook::current);
+    menu.addSubMenu ("Style", look);
 
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton), [this] (int r)
     {
         if (r >= 100 && r < 103) setZoom (r - 100);
         else if (r >= 200 && r < 200 + OctoColours::numThemes) setTheme (r - 200);
+        else if (r >= 300 && r < 300 + OctoLook::numLooks)
+        {
+            OctoLook::apply (r - 300);
+            OctoPrefs::setInt ("look", OctoLook::current);
+            setTheme (OctoColours::currentTheme);
+        }
     });
 }
 
