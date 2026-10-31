@@ -1,4 +1,20 @@
 #include "PluginEditor.h"
+#include <BinaryData.h>
+
+namespace
+{
+    // Charge le fond illustré du décor courant (intégré au plugin), une seule fois par image
+    void loadDecorImages()
+    {
+        const char* name = OctoDecor::get().image;
+        if (name == nullptr) return;
+        int size = 0;
+        if (auto* data = BinaryData::getNamedResource ((juce::String (name) + "_jpg").toRawUTF8(), size))
+            OctoDecor::bgImage = juce::ImageCache::getFromMemory (data, size);
+        if (auto* data = BinaryData::getNamedResource ((juce::String (name) + "_blur_jpg").toRawUTF8(), size))
+            OctoDecor::bgBlur = juce::ImageCache::getFromMemory (data, size);
+    }
+}
 
 namespace
 {
@@ -140,9 +156,10 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
 {
     using namespace ParamIDs;
 
-    OctoColours::applyTheme (OctoPrefs::getInt ("theme", 0));
-    OctoLook::apply (OctoPrefs::getInt ("look", 0));
-    OctoDecor::apply (OctoPrefs::getInt ("decor", 0));
+    OctoColours::applyTheme (OctoPrefs::getInt ("theme", 2));
+    OctoLook::apply (OctoPrefs::getInt ("look", 2));
+    OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
+    loadDecorImages();
     lnf.refreshColours();
     setLookAndFeel (&lnf);
     addAndMakeVisible (content);

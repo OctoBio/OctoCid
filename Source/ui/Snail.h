@@ -26,6 +26,7 @@ namespace OctoSnail
         bool stitches = false;    // coutures (zombie)
         bool spikes = false;      // clous (punk)
         bool glowEyes = false;    // iris lumineux
+        float eyeScale = 1.0f;    // taille des yeux
     };
 
     inline const Style styles[] =
@@ -54,17 +55,22 @@ namespace OctoSnail
         { "Punk",              0xffe2f06a, 0xffaac82a, 0xff4e6a0a, 0xffff2a8a, 0xffffb8d8, 0xffa00a50,
           0xff6a6a72, 0xff2e2e34, 0xff18181c, 0xff08080a, 0xffb8b8c8, 0xff08080a,
           0xffff8a8a, 0xffa00a10, 0xfffffbe6, 0xffe9b49a, 0xffc0202a, 0, false, false, true },
+        // 9. Punk psyché : clous + coquille arc-en-ciel + gros yeux (style retenu)
+        { "Punk psyche",       0xffe2f06a, 0xffaac82a, 0xff4e6a0a, 0xffff2a8a, 0xffffb8d8, 0xffa00a50,
+          0xffffe07a, 0xffe06a3a, 0xff8a2a8a, 0xff2a1050, 0xffffffff, 0xff2a1050,
+          0xffff8a8a, 0xffa00a10, 0xfffffbe6, 0xffe9b49a, 0xffc0202a, 2, false, false, true, false, 1.45f },
     };
+    inline constexpr int mascotStyle = 8;
     inline constexpr int numStyles = (int) (sizeof (styles) / sizeof (styles[0]));
 
     inline void draw (juce::Graphics& g, juce::Rectangle<float> area, const Style& st = styles[0])
     {
         const juce::Colour kAcid (st.acid), kAcidHi (st.acidHi), kAcidDeep (st.acidDeep);
         const juce::Colour kSkinHi (st.skinHi), kSkin (st.skin), kSkinLo (st.skinLo);
-        constexpr float DW = 250.0f, DH = 172.0f;
+        constexpr float DW = 256.0f, DH = 186.0f;
         const float s = juce::jmin (area.getWidth() / DW, area.getHeight() / DH);
         const auto o = area.getCentre().translated (-DW * 0.5f * s, -DH * 0.5f * s);
-        auto P = [&] (float x, float y) { return juce::Point<float> (o.x + (x + 2.0f) * s, o.y + (y + 6.0f) * s); };
+        auto P = [&] (float x, float y) { return juce::Point<float> (o.x + (x + 3.0f) * s, o.y + (y + 16.0f) * s); };
         auto R = [&] (float cx, float cy, float w, float h) { return juce::Rectangle<float> (w * s, h * s).withCentre (P (cx, cy)); };
         auto stroke = [&] (float w) { return juce::PathStrokeType (w * s, juce::PathStrokeType::curved, juce::PathStrokeType::rounded); };
         juce::Random rnd (1303);
@@ -381,8 +387,11 @@ namespace OctoSnail
                 g.drawLine (pt.x - w * 0.4f * s, pt.y, pt.x + w * 0.4f * s, pt.y + 0.8f * s, 0.9f * s);
             }
         };
-        stalk ({ 194, 64 }, { 190, 42 }, { 175, 26 }, 6.0f);
-        stalk ({ 210, 66 }, { 222, 54 }, { 229, 45 }, 5.2f);
+        const float ek = st.eyeScale;
+        const juce::Point<float> eL (174.0f - (ek - 1.0f) * 6.0f, 24.0f - (ek - 1.0f) * 10.0f);
+        const juce::Point<float> eR (230.0f - (ek - 1.0f) * 4.0f, 44.0f - (ek - 1.0f) * 2.0f);
+        stalk ({ 194, 64 }, { 190, 42 }, eL, 6.0f);
+        stalk ({ 210, 66 }, { 222, 54 }, eR, 5.2f);
 
         //======================================================================
         // Yeux injectés, pupilles dilatées, paupières lourdes et sourcils froncés
@@ -492,8 +501,8 @@ namespace OctoSnail
             g.setColour (kInk);     g.strokePath (brow, stroke (5.2f));
             g.setColour (kSkinLo);  g.strokePath (brow, stroke (2.6f));
         };
-        eye (174, 24, 15.0f,  0.32f,  0.22f,  0.20f, 7);    // gauche : regard en coin, mauvais
-        eye (230, 44, 12.5f, -0.28f, -0.28f,  0.28f, 13);   // droit : tombant, qui louche
+        eye (eL.x, eL.y, 15.0f * ek,  0.32f,  0.22f,  0.20f, 7);    // gauche : regard en coin, mauvais
+        eye (eR.x, eR.y, 12.5f * ek, -0.28f, -0.28f,  0.28f, 13);   // droit : tombant, qui louche
 
         //======================================================================
         // Bouche : rictus en coin, dents cassées, bave d'acide

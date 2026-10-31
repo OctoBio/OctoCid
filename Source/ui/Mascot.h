@@ -21,12 +21,7 @@ public:
         using namespace OctoColours;
         auto r = getLocalBounds().toFloat();
 
-        // Fond de la zone : panneau en creux
-        const auto org = getPosition().toFloat();
-        OctoLook::shape (g, r.reduced (1.0f).withTrimmedRight (2.0f).withTrimmedBottom (2.0f),
-                         OctoLook::get().panelR, background.interpolatedWith (panel, 0.5f).withMultipliedAlpha (OctoDecor::get().panelAlpha),
-                         1.0f, &org);
-
-        OctoSnail::draw (g, r.reduced (6.0f, 4.0f));
+        // Pas de cadre : l'escargot flotte au centre du portail
+        OctoSnail::draw (g, r, OctoSnail::styles[OctoSnail::mascotStyle]);
     }
 };

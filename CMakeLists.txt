@@ -78,8 +78,13 @@ target_compile_definitions(OctoCid PUBLIC
     JUCE_DISPLAY_SPLASH_SCREEN=0
 )
 
+juce_add_binary_data(OctoCidAssets SOURCES
+    Assets/portail_violet.jpg
+    Assets/portail_violet_blur.jpg)
+
 target_link_libraries(OctoCid
     PRIVATE
+        OctoCidAssets
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

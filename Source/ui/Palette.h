@@ -112,7 +112,7 @@ namespace OctoLook
         { "BD bulles",            5, 16.0f, 10.0f, 2.5f, 1, false, 3 },
     };
     inline constexpr int numLooks = (int) (sizeof (looks) / sizeof (looks[0]));
-    inline int current = 0;
+    inline int current = 2;
     inline const Look& get() { return looks[juce::jlimit (0, numLooks - 1, current)]; }
     inline void apply (int index) { current = juce::jlimit (0, numLooks - 1, index); }
 
@@ -179,9 +179,11 @@ namespace OctoDecor
         { "Acide liquide",            2, 6, false, false, false, 0.62f, "acide" },
         { "Orage acide",              2, 6, false, false, false, 0.70f, "orage" },
         { "Acide + orage",            2, 6, false, false, false, 0.64f, "acide_orage" },
+        { "Portail violet",           2, 6, false, false, false, 0.66f, "portail_violet" },
     };
     inline constexpr int numDecors = (int) (sizeof (decors) / sizeof (decors[0]));
-    inline int current = 0;
+    inline constexpr int defaultDecor = 11;
+    inline int current = defaultDecor;
     inline const Decor& get() { return decors[juce::jlimit (0, numDecors - 1, current)]; }
     inline void apply (int index) { current = juce::jlimit (0, numDecors - 1, index); }
 
