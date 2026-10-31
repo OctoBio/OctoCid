@@ -17,7 +17,7 @@ namespace octoui
         const bool straddle = title.isNotEmpty() && (L.title == 1 || L.title == 3);
         auto inner = r.withTrimmedRight (L.shadow == 1 ? 3.0f : 0.0f).withTrimmedBottom (L.shadow == 1 ? 3.0f : 0.0f)
                       .withTrimmedTop (straddle ? 8.0f : 0.0f);
-        OctoLook::shape (g, inner, L.panelR, fill);
+        OctoLook::shape (g, inner, L.panelR, fill.withMultipliedAlpha (OctoDecor::get().panelAlpha));
 
         // Vis aux coins (style rack)
         if (L.screws)

@@ -30,6 +30,12 @@ namespace OctoColours
         { "Neon (nuit froide)",       0xff1d2023, 0xff272b2f, 0xff32373c, 0xffe8ecee, 0xffb4ff39, 0xff5d656c, 0xff111315 },
         // 3. Papier : clair façon BD, encre anthracite, vert profond
         { "Papier (BD claire)",       0xffe8dfcb, 0xffdcd1b9, 0xffcfc3a8, 0xff2b2826, 0xff5aa61a, 0xff9a8f7a, 0xff2b2826 },
+        // 4. Jaune acid house
+        { "Jaune acide",              0xfff2cf1d, 0xfff6eedb, 0xffebe0c4, 0xff2b2826, 0xff3e9b16, 0xffa39a80, 0xff2b2826 },
+        // 5. Nuit acide : fond sombre, panneaux papier, vert néon
+        { "Nuit acide",               0xff1f2420, 0xffefe6cf, 0xffe2d7bb, 0xff2b2826, 0xff58b11b, 0xff9a8f7a, 0xff1a1917 },
+        // 6. Vert acide : fond vert vif, panneaux papier
+        { "Vert acide",               0xff9ad62a, 0xfff3ecd8, 0xffe6dcc2, 0xff2b2826, 0xff3f8f12, 0xff9a8f7a, 0xff2b2826 },
     };
     inline constexpr int numThemes = (int) (sizeof (themes) / sizeof (themes[0]));
     inline int currentTheme = 0;
@@ -48,7 +54,7 @@ namespace OctoColours
     }
 
     // Texte posé sur la couleur d'accent (lisible dans les trois palettes)
-    inline juce::Colour onSlime() { return currentTheme == 2 ? juce::Colour (0xfff4efe2) : background; }
+    inline juce::Colour onSlime() { return currentTheme >= 2 ? juce::Colour (0xfff4efe2) : background; }
 }
 
 //==============================================================================
@@ -129,5 +135,140 @@ namespace OctoLook
         g.fillRoundedRectangle (r, radius);
         g.setColour (ink);
         g.drawRoundedRectangle (r, radius, L.outline * outlineScale);
+    }
+}
+
+//==============================================================================
+// Décor de fond (éclairs, trames, rayures) : donne du caractère « acid »
+//==============================================================================
+namespace OctoDecor
+{
+    struct Decor
+    {
+        const char* name;
+        int   theme;       // palette associée
+        int   bolts;       // 0 aucun, 1 vert, 2 encre, 3 néon lumineux, 4 crème
+        bool  dots;        // trame de points
+        bool  stripes;     // rayures diagonales
+        bool  speed;       // lignes de vitesse horizontales
+        float panelAlpha;  // opacité des panneaux (le décor transparaît)
+    };
+
+    inline const Decor decors[] =
+    {
+        { "Papier + eclairs",         2, 1, false, false, false, 1.0f  },
+        { "Papier + eclairs + trame", 2, 1, true,  false, false, 0.93f },
+        { "Jaune acide + eclairs",    3, 2, false, false, false, 1.0f  },
+        { "Vert acide + rayures",     5, 4, false, true,  false, 0.95f },
+        { "Nuit acide + neon",        4, 3, false, false, false, 1.0f  },
+        { "Papier + vitesse",         2, 1, false, false, true,  0.95f },
+        { "Papier + grand eclair",    2, 5, false, false, false, 0.84f },
+        { "Jaune + grand eclair",     3, 5, true,  false, false, 0.86f },
+    };
+    inline constexpr int numDecors = (int) (sizeof (decors) / sizeof (decors[0]));
+    inline int current = 0;
+    inline const Decor& get() { return decors[juce::jlimit (0, numDecors - 1, current)]; }
+    inline void apply (int index) { current = juce::jlimit (0, numDecors - 1, index); }
+
+    // Éclair horizontal en zigzag, de gauche à droite
+    inline juce::Path bolt (float x0, float x1, float y, float amp, int seed)
+    {
+        juce::Random rnd (seed);
+        juce::Path p;
+        p.startNewSubPath (x0, y);
+        float x = x0; bool up = true;
+        while (x < x1)
+        {
+            x += 26.0f + rnd.nextFloat() * 46.0f;
+            const float yy = y + (up ? -1.0f : 1.0f) * amp * (0.5f + rnd.nextFloat() * 0.6f);
+            p.lineTo (juce::jmin (x, x1), yy);
+            up = ! up;
+        }
+        return p;
+    }
+
+    // Dessine le décor sur toute la zone de l'éditeur ; « area » est en coordonnées éditeur,
+    // « origin » décale pour un composant enfant (tiroir).
+    inline void paint (juce::Graphics& g, juce::Rectangle<float> area, juce::Point<float> origin = {})
+    {
+        using namespace OctoColours;
+        const auto& D = get();
+        juce::Graphics::ScopedSaveState ss (g);
+        g.addTransform (juce::AffineTransform::translation (-origin.x, -origin.y));
+        const auto paper = juce::Colour (0xfff6efdf);
+
+        if (D.stripes)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.16f));
+            for (float x = -area.getHeight(); x < area.getRight(); x += 34.0f)
+            {
+                juce::Path st;
+                st.addQuadrilateral (x, area.getBottom(), x + 14.0f, area.getBottom(),
+                                     x + 14.0f + area.getHeight(), area.getY(), x + area.getHeight(), area.getY());
+                g.fillPath (st);
+            }
+        }
+        if (D.dots)
+        {
+            g.setColour (ink.withAlpha (0.10f));
+            for (float y = area.getY(); y < area.getBottom(); y += 9.0f)
+                for (float x = area.getX() + (std::fmod (y, 18.0f) < 9.0f ? 0.0f : 4.5f); x < area.getRight(); x += 9.0f)
+                    g.fillEllipse (x, y, 2.6f, 2.6f);
+        }
+        if (D.speed)
+        {
+            juce::Random rnd (7);
+            for (int i = 0; i < 40; ++i)
+            {
+                const float y = area.getY() + rnd.nextFloat() * area.getHeight();
+                const float x = area.getX() + rnd.nextFloat() * area.getWidth() * 0.7f;
+                const float len = 60.0f + rnd.nextFloat() * 260.0f;
+                g.setColour ((i % 3 == 0 ? slime : ink).withAlpha (0.18f));
+                g.fillRoundedRectangle (x, y, len, 2.0f + rnd.nextFloat() * 2.5f, 1.5f);
+            }
+        }
+        if (D.bolts == 5)
+        {
+            // Un grand éclair qui traverse toute l'interface, visible à travers les panneaux
+            juce::Path p;
+            p.startNewSubPath (area.getX() - 20.0f, 150.0f);
+            const float pts[][2] = { {170, 300}, {150, 250}, {380, 420}, {350, 360}, {610, 520}, {580, 440}, {820, 600}, {790, 520}, {1030, 640} };
+            for (auto& q : pts) p.lineTo (q[0], q[1] - 40.0f);
+            p.lineTo (1030.0f, 560.0f);
+            for (int i = 8; i >= 0; --i) p.lineTo (pts[i][0] + 10.0f, pts[i][1] - 120.0f + (i % 2 ? 10.0f : 0.0f));
+            p.lineTo (area.getX() - 20.0f, 60.0f);
+            p.closeSubPath();
+            g.setColour (ink.withAlpha (0.8f));
+            g.fillPath (p, juce::AffineTransform::translation (6.0f, 6.0f));
+            g.setColour (slime);
+            g.fillPath (p);
+            g.setColour (ink);
+            g.strokePath (p, juce::PathStrokeType (3.0f));
+            // petits éclairs dans la barre du haut
+            auto b = bolt (area.getX() - 10.0f, area.getRight() + 10.0f, 26.0f, 9.0f, 31);
+            g.setColour (slime); g.strokePath (b, juce::PathStrokeType (3.0f));
+        }
+        else if (D.bolts > 0)
+        {
+            const float ys[] = { 26.0f, 210.0f, 342.0f, 612.0f };
+            const float amps[] = { 9.0f, 5.0f, 5.0f, 5.0f };
+            for (int i = 0; i < 4; ++i)
+            {
+                auto p = bolt (area.getX() - 10.0f, area.getRight() + 10.0f, ys[i], amps[i], 31 + i * 17);
+                const juce::PathStrokeType thick (8.0f, juce::PathStrokeType::mitered, juce::PathStrokeType::square);
+                const juce::PathStrokeType thin (4.0f, juce::PathStrokeType::mitered, juce::PathStrokeType::square);
+                switch (D.bolts)
+                {
+                    case 1: g.setColour (ink.withAlpha (0.55f)); g.strokePath (p, thick); g.setColour (slime); g.strokePath (p, thin); break;
+                    case 2: g.setColour (ink); g.strokePath (p, thin); break;
+                    case 3:
+                        g.setColour (slime.withAlpha (0.18f)); g.strokePath (p, juce::PathStrokeType (16.0f));
+                        g.setColour (slime.withAlpha (0.35f)); g.strokePath (p, juce::PathStrokeType (9.0f));
+                        g.setColour (slime.brighter (0.6f)); g.strokePath (p, juce::PathStrokeType (3.0f));
+                        break;
+                    default: g.setColour (ink); g.strokePath (p, thick); g.setColour (paper); g.strokePath (p, thin); break;
+                }
+            }
+        }
     }
 }

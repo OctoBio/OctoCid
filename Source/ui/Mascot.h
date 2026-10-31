@@ -22,7 +22,7 @@ public:
 
         // Fond de la zone : panneau en creux
         OctoLook::shape (g, r.reduced (1.0f).withTrimmedRight (2.0f).withTrimmedBottom (2.0f),
-                         OctoLook::get().panelR, background.interpolatedWith (panel, 0.5f));
+                         OctoLook::get().panelR, background.interpolatedWith (panel, 0.5f).withMultipliedAlpha (OctoDecor::get().panelAlpha));
 
         const float s = juce::jmin (r.getWidth() / 200.0f, r.getHeight() / 140.0f);
         const auto o = r.getCentre().translated (-100.0f * s, -70.0f * s);

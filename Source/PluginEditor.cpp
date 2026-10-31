@@ -86,6 +86,7 @@ juce::Component* OctoCidAudioProcessorEditor::Drawer::addCombo (OctoCidAudioProc
 void OctoCidAudioProcessorEditor::Drawer::paint (juce::Graphics& g)
 {
     g.fillAll (OctoColours::background);
+    OctoDecor::paint (g, { 0.0f, 0.0f, 1000.0f, 620.0f }, getPosition().toFloat());
     auto r = getLocalBounds().toFloat().reduced (1.0f);
     const float split = r.getWidth() * 0.63f;
     octoui::drawPanel (g, r.withWidth (split - 4.0f), "SLIME MODS", true);
@@ -108,9 +109,10 @@ void OctoCidAudioProcessorEditor::Content::paint (juce::Graphics& g)
     using namespace OctoColours;
     auto& e = editor;
     g.fillAll (background);
+    OctoDecor::paint (g, getLocalBounds().toFloat());
 
-    // Barre du haut
-    g.setColour (panel);
+    // Barre du haut (le décor transparaît)
+    g.setColour (panel.withAlpha (0.82f));
     g.fillRect (e.topBar);
     g.setColour (ink);
     g.fillRect (e.topBar.withTop (e.topBar.getBottom() - 2));
@@ -138,6 +140,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
 
     OctoColours::applyTheme (OctoPrefs::getInt ("theme", 0));
     OctoLook::apply (OctoPrefs::getInt ("look", 0));
+    OctoDecor::apply (OctoPrefs::getInt ("decor", 0));
     lnf.refreshColours();
     setLookAndFeel (&lnf);
     addAndMakeVisible (content);
