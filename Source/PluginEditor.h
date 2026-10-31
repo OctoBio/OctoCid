@@ -2,11 +2,20 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "ui/OctoLookAndFeel.h"
+#include "ui/Widgets.h"
+#include "ui/Mascot.h"
 #include "ui/SequencerView.h"
 
 //==============================================================================
-// Éditeur provisoire : potards JUCE standards, rangés par sections, pour régler
-// le son pendant la mise au point. La vraie interface arrive à l'étape 5.
+// Interface OctoCid (étape 5).
+//  1. Barre du haut : logo, presets, SEQ ON/OFF, escargot On/Off, qualité, menu
+//     (zoom 100 / 125 / 150 %, palette).
+//  2. Zone mascotte au centre, entourée du DRIVE et du LFO.
+//  3. Panneau principal (potards 303) + bouton du tiroir SLIME MODS, qui se
+//     déplie en douceur au-dessus, sans masquer le séquenceur.
+//  4. Séquenceur sur toute la largeur.
+// Taille de base 1000 x 620, tout est dessiné en vectoriel.
 //==============================================================================
 class OctoCidAudioProcessorEditor : public juce::AudioProcessorEditor,
                                     private juce::Timer
@@ -15,53 +24,81 @@ public:
     explicit OctoCidAudioProcessorEditor (OctoCidAudioProcessor&);
     ~OctoCidAudioProcessorEditor() override;
 
-    void paint (juce::Graphics&) override;
+    void paint (juce::Graphics&) override {}
     void resized() override;
+
+    static constexpr int kWidth = 1000, kHeight = 620;
 
 private:
     void timerCallback() override;
-
-    // Un contrôle = un libellé + un potard ou un menu
-    struct Control
-    {
-        juce::Label label;
-        std::unique_ptr<juce::Slider> slider;
-        std::unique_ptr<juce::ComboBox> box;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sliderAttachment;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> boxAttachment;
-    };
-
-    struct Section
-    {
-        juce::String title;
-        juce::Rectangle<int> bounds;
-        bool slime = false;
-        std::vector<std::vector<Control*>> rows;
-    };
-
-    Control* knob (const juce::ParameterID&, const juce::String& name);
-    Control* choice (const juce::ParameterID&, const juce::String& name);
-    void layoutRow (juce::Rectangle<int> area, const std::vector<Control*>& row);
     void refreshPresetBox();
-    void setPage (bool sequencer);
+    void showMenu();
+    void setZoom (int index);
+    void setTheme (int index);
+    void toggleDrawer();
+
+    //==========================================================================
+    // Contenu à l'échelle 1 (le zoom est une transformation de ce composant)
+    class Content : public juce::Component
+    {
+    public:
+        explicit Content (OctoCidAudioProcessorEditor& e) : editor (e) {}
+        void paint (juce::Graphics&) override;
+        OctoCidAudioProcessorEditor& editor;
+    };
+
+    // Tiroir SLIME MODS + PUNCH / FX
+    class Drawer : public juce::Component
+    {
+    public:
+        explicit Drawer (OctoCidAudioProcessor&);
+        void paint (juce::Graphics&) override;
+        void resized() override;
+    private:
+        std::vector<std::unique_ptr<juce::Component>> slimeItems, fxItems;
+        std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;
+        juce::Component* addCombo (OctoCidAudioProcessor&, const juce::ParameterID&, const juce::String& name,
+                                   std::vector<std::unique_ptr<juce::Component>>& into);
+    };
 
     OctoCidAudioProcessor& processor;
-    juce::LookAndFeel_V4 lookAndFeel;
+    OctoLookAndFeel lnf;
+    Content content { *this };
+    std::unique_ptr<juce::TooltipWindow> tooltips;
 
-    std::vector<std::unique_ptr<Control>> controls;
-    std::vector<Section> sections;
-
+    // Barre du haut
     juce::ComboBox presetBox;
-    juce::TextButton prevButton { "<" }, nextButton { ">" };
-    juce::Label presetInfo;
-    juce::TextButton soundTab { "SON" }, seqTab { "SEQUENCEUR" };
-    std::unique_ptr<SequencerView> seqView;
-    bool showSeq = false;
+    juce::TextButton prevButton { "<" }, nextButton { ">" }, menuButton { "..." };
+    juce::ToggleButton seqToggle { "SEQ" }, snailToggle { "Escargot" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> seqAttachment, snailAttachment;
+    std::unique_ptr<octoui::Segmented> quality;
 
+    // Drive / LFO
+    std::unique_ptr<octoui::Segmented> driveType, drivePos, lfoShape, lfoDest;
+    std::unique_ptr<octoui::Knob> drive, driveTone, driveMix, lfoRate, lfoDepth;
+    juce::ComboBox lfoSync;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> lfoSyncAttachment;
+
+    // Mascotte
+    MascotView mascot;
+
+    // Panneau 303
+    std::unique_ptr<octoui::Knob> tune, cutoff, resonance, envMod, decay, accent, volume;
+    std::unique_ptr<octoui::Segmented> waveform;
+    juce::TextButton drawerButton { "SLIME MODS" };
+
+    // Tiroir et séquenceur
+    Drawer drawer;
+    SequencerView sequencer;
+
+    // Zones (coordonnées du contenu)
+    juce::Rectangle<int> topBar, drivePanel, mascotArea, lfoPanel, mainPanel, seqArea, upperArea, ledArea;
+
+    float drawerFrac = 0.0f, drawerTarget = 0.0f;
     int displayedNote = -1;
     bool displayedAccent = false;
     int displayedProgram = -1;
-    juce::Rectangle<int> ledArea;
+    int zoomIndex = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OctoCidAudioProcessorEditor)
 };

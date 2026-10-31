@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 0.4.1 LANGUAGES C CXX)
+project(OctoCid VERSION 0.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,6 +49,9 @@ target_sources(OctoCid PRIVATE
     Source/ui/SequencerView.cpp
     Source/ui/SequencerView.h
     Source/ui/Palette.h
+    Source/ui/OctoLookAndFeel.h
+    Source/ui/Widgets.h
+    Source/ui/Mascot.h
     Source/Params.h
     Source/Presets.h
     Source/dsp/DspUtils.h

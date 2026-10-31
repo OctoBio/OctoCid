@@ -59,6 +59,9 @@ namespace ParamIDs
     inline const juce::ParameterID seqSwing   { "seqswing",   1 };
     inline const juce::ParameterID seqGate    { "seqgate",    1 };
 
+    // Interface
+    inline const juce::ParameterID snailAnim  { "snailanim",  1 };
+
     // LFO
     inline const juce::ParameterID lfoRate  { "lforate",  1 };
     inline const juce::ParameterID lfoSync  { "lfosync",  1 };

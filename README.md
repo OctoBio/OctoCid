@@ -2,7 +2,20 @@
 
 Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte escargot.
 
-> Statut : étape 4 (séquenceur). Jouable au clavier, au piano roll ou avec le séquenceur intégré, avec une interface provisoire.
+> Statut : étape 5 (interface). Jouable au clavier, au piano roll ou avec le séquenceur intégré.
+
+## Interface
+
+Fenêtre 1000 × 620 (zoom 100 / 125 / 150 % dans le menu « ... »), tout en vectoriel :
+
+1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de l'escargot, qualité Normal / High, menu (zoom, palette).
+2. **Drive** à gauche, **mascotte** au centre, **LFO** à droite.
+3. **Panneau 303** (Tune, Cutoff, Resonance, Env Mod, Decay, Accent, Waveform, Volume) et le bouton du tiroir
+   **SLIME MODS**, qui se déplie au-dessus (réglages avancés + Punch / Delay / Reverb) sans masquer le séquenceur.
+4. **Séquenceur** sur toute la largeur.
+
+Potards : valeur affichée au survol et pendant le réglage, double-clic = valeur par défaut,
+Ctrl + glisser = réglage fin, molette. Trois palettes au choix (Slime, Néon, Papier).
 
 ## Jeu au clavier
 
@@ -10,7 +23,7 @@ Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid cla
 - Vélocité ≥ seuil (100 par défaut, réglable) = **accent**
 - Qualité : Normal (suréchantillonnage 2x) ou High (4x)
 
-## Séquenceur (onglet SÉQUENCEUR)
+## Séquenceur
 
 - **SEQ ON** : le séquenceur joue en rythme avec le DAW (tempo et transport). Une note MIDI transpose
   le pattern (Do3 = 0). Les notes Do0 à Sol0 choisissent les patterns A à H, au cycle suivant.
@@ -72,6 +85,6 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 2. Moteur sonore (osc, filtre diode ladder, enveloppes, accent, slide) ✅
 3. Drive, LFO, Slime Mods ✅ (+ Punch, Delay, Reverb, presets d'usine son)
 4. Séquenceur + sync DAW + export MIDI ✅
-5. Interface
+5. Interface ✅ (palette à figer)
 6. Escargot animé
 7. Presets avec patterns, finitions, pluginval

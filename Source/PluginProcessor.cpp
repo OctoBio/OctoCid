@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "ui/Palette.h"
 #include "Presets.h"
 
 //==============================================================================
@@ -102,6 +103,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::seqRes, "Seq Resolution", SeqRes::names, 0));
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::seqSwing, "Seq Swing",
         NormalisableRange<float> (0.0f, 75.0f, 0.1f), 0.0f, pct));
+    layout.add (std::make_unique<AudioParameterBool> (ParamIDs::snailAnim, "Snail Animation", true));
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::seqGate, "Seq Gate",
         NormalisableRange<float> (10.0f, 95.0f, 0.1f), 50.0f, pct));
 
@@ -614,7 +616,7 @@ void OctoCidAudioProcessor::applyProgram (int index)
 
     // Tout le son repart des valeurs par défaut ; la qualité et le seuil d'accent
     // restent ceux de l'utilisateur.
-    static const juce::StringArray keep { "quality", "accentthr", "seqon", "seqpattern", "seqres", "seqswing" };
+    static const juce::StringArray keep { "quality", "accentthr", "seqon", "seqpattern", "seqres", "seqswing", "seqgate", "snailanim" };
     for (auto* param : getParameters())
         if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (param))
             if (! keep.contains (rp->getParameterID()))
@@ -632,6 +634,8 @@ void OctoCidAudioProcessor::applyProgram (int index)
 //==============================================================================
 juce::AudioProcessorEditor* OctoCidAudioProcessor::createEditor()
 {
+    // La palette est appliquée avant de construire les composants
+    OctoColours::applyTheme (OctoPrefs::getInt ("theme", 0));
     return new OctoCidAudioProcessorEditor (*this);
 }
 
