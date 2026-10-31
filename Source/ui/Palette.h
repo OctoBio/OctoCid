@@ -107,7 +107,14 @@ namespace OctoLook
         float seqAlpha = -1.0f;     // opacité du panneau séquenceur
         float outlineAlpha = 1.0f;  // opacité des contours
         bool  lightOutline = false; // contour clair (verre) au lieu de l'encre
+        // --- Glitch
+        float chamfer = 0.0f;       // coins coupés (px) au lieu d'arrondis
+        float split = 0.0f;         // contour dédoublé cyan / magenta (décalage px)
+        bool  brackets = false;     // seulement des équerres aux coins
+        float scan = 0.0f;          // lignes de balayage sur les panneaux (opacité)
+        int   glitchBars = 0;       // barres décalées sur les bords des panneaux
     };
+    inline const juce::Colour glitchCyan { 0xff00e8ff }, glitchMagenta { 0xffff2ac8 };
 
     inline const Look looks[] =
     {
@@ -119,6 +126,12 @@ namespace OctoLook
         { "Epure C - sans contour",   5, 8.0f, 6.0f, 0.0f, 0, false, 5, 0.45f, 0.86f, 0.0f,  false },
         { "Epure D - BD allege",      5, 8.0f, 7.0f, 2.0f, 1, false, 3, 0.50f, 0.88f, 1.0f,  false },
         { "Epure E - tres transparent", 5, 5.0f, 4.0f, 1.0f, 2, false, 4, 0.32f, 0.80f, 0.6f, true  },
+        // Glitch rave
+        { "Glitch 1 - epure",       5, 0.0f, 0.0f, 1.0f, 2, false, 6, 0.32f, 0.80f, 0.55f, true,  8.0f, 1.5f, false, 0.0f,  0 },
+        { "Glitch 2 - equerres",    5, 0.0f, 0.0f, 1.6f, 2, false, 7, 0.30f, 0.80f, 1.0f,  false, 0.0f, 0.0f, true,  0.06f, 0 },
+        { "Glitch 3 - VHS",         5, 0.0f, 0.0f, 1.2f, 2, false, 7, 0.34f, 0.82f, 0.7f,  true,  6.0f, 2.5f, false, 0.10f, 3 },
+        { "Glitch 4 - terminal",    5, 0.0f, 0.0f, 1.2f, 2, false, 8, 0.36f, 0.84f, 1.0f,  false, 0.0f, 0.0f, false, 0.08f, 0 },
+        { "Glitch 5 - fort",        5, 0.0f, 0.0f, 2.0f, 2, false, 7, 0.32f, 0.82f, 0.9f,  true,  12.0f, 4.0f, false, 0.12f, 6 },
     };
     inline constexpr int numLooks = (int) (sizeof (looks) / sizeof (looks[0]));
     inline constexpr int defaultLook = 7;
@@ -129,11 +142,85 @@ namespace OctoLook
     // Rectangle arrondi avec l'ombre et le contour du style courant
     inline void shape (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale = 1.0f,
                        const juce::Point<float>* frostOrigin = nullptr, bool strongFrost = false);
+    // Contour d'un panneau : arrondi ou coins coupés (glitch)
+    inline juce::Path outlinePath (juce::Rectangle<float> r, float radius, float chamfer)
+    {
+        juce::Path p;
+        if (chamfer > 0.0f)
+        {
+            const float c = juce::jmin (chamfer, r.getHeight() * 0.35f, r.getWidth() * 0.35f);
+            p.startNewSubPath (r.getX() + c, r.getY());
+            p.lineTo (r.getRight(), r.getY());
+            p.lineTo (r.getRight(), r.getBottom() - c);
+            p.lineTo (r.getRight() - c, r.getBottom());
+            p.lineTo (r.getX(), r.getBottom());
+            p.lineTo (r.getX(), r.getY() + c);
+            p.closeSubPath();
+        }
+        else
+            p.addRoundedRectangle (r, radius);
+        return p;
+    }
+
     inline void shapeImpl (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale,
                            const juce::Point<float>* frostOrigin, bool (*frostFn) (juce::Graphics&, const juce::Path&, juce::Point<float>))
     {
         using namespace OctoColours;
         const auto& L = get();
+        const bool isPanel = outlineScale >= 1.0f;
+        if (L.chamfer > 0.0f || L.brackets || L.split > 0.0f || L.scan > 0.0f)
+        {
+            const float ch = L.chamfer * (isPanel ? 1.0f : 0.5f);
+            const auto p = outlinePath (r, juce::jmin (radius, 2.0f), ch);
+            if (frostOrigin != nullptr && frostFn != nullptr) frostFn (g, p, *frostOrigin);
+            g.setColour (fill); g.fillPath (p);
+            if (L.scan > 0.0f && isPanel)
+            {
+                juce::Graphics::ScopedSaveState ss (g);
+                g.reduceClipRegion (r.toNearestInt());
+                g.setColour (ink.withAlpha (L.scan));
+                for (float y = r.getY() + 1.0f; y < r.getBottom(); y += 3.0f) g.fillRect (r.getX(), y, r.getWidth(), 1.0f);
+            }
+            const float w = L.outline * juce::jmax (1.0f, outlineScale) * (isPanel ? 1.0f : 0.8f);
+            const auto lineCol = (L.lightOutline ? juce::Colour (0xfffff8ec) : ink).withAlpha (L.outlineAlpha);
+            if (L.brackets)
+            {
+                g.setColour (isPanel ? slime : lineCol);
+                const float k = juce::jmin (isPanel ? 16.0f : 6.0f, r.getWidth() * 0.3f, r.getHeight() * 0.4f);
+                for (auto c : { r.getTopLeft(), r.getTopRight(), r.getBottomLeft(), r.getBottomRight() })
+                {
+                    const float sx = c.x < r.getCentreX() ? 1.0f : -1.0f, sy = c.y < r.getCentreY() ? 1.0f : -1.0f;
+                    g.drawLine (c.x, c.y, c.x + sx * k, c.y, w * 1.6f);
+                    g.drawLine (c.x, c.y, c.x, c.y + sy * k, w * 1.6f);
+                }
+                if (! isPanel) { g.setColour (lineCol.withMultipliedAlpha (0.5f)); g.strokePath (p, juce::PathStrokeType (1.0f)); }
+            }
+            else
+            {
+                if (L.split > 0.0f)
+                {
+                    const float d = L.split * (isPanel ? 1.0f : 0.5f);
+                    g.setColour (glitchCyan.withAlpha (0.8f));    g.strokePath (p, juce::PathStrokeType (w), juce::AffineTransform::translation (-d, 0.0f));
+                    g.setColour (glitchMagenta.withAlpha (0.8f)); g.strokePath (p, juce::PathStrokeType (w), juce::AffineTransform::translation (d, 0.0f));
+                }
+                g.setColour (lineCol); g.strokePath (p, juce::PathStrokeType (w));
+            }
+            if (L.glitchBars > 0 && isPanel)
+            {
+                juce::Random rnd ((juce::int64) (r.getX() * 31 + r.getY() * 7));
+                for (int i = 0; i < L.glitchBars; ++i)
+                {
+                    const bool left = rnd.nextBool();
+                    const float y = r.getY() + 6.0f + rnd.nextFloat() * (r.getHeight() - 12.0f);
+                    const float bw = 10.0f + rnd.nextFloat() * 40.0f, bh = 2.0f + rnd.nextFloat() * 4.0f;
+                    const float x = left ? r.getX() - bw * 0.35f : r.getRight() - bw * 0.65f;
+                    const juce::Colour cols[] = { glitchCyan, glitchMagenta, slime };
+                    g.setColour (cols[rnd.nextInt (3)].withAlpha (0.85f));
+                    g.fillRect (x, y, bw, bh);
+                }
+            }
+            return;
+        }
         if (L.shadow == 0)
         {
             g.setColour (ink.withAlpha (0.4f));

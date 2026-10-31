@@ -99,6 +99,41 @@ namespace octoui
                 g.drawText (title, t, juce::Justification::centred);
                 break;
             }
+            case 6:   // glitch épuré : « // TITRE » + filet
+            case 7:   // glitch : bloc plein avec décalage cyan / magenta
+            case 8:   // terminal : « > TITRE_ »
+            {
+                const juce::Font mono (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.5f, juce::Font::bold));
+                const juce::String txt = L.title == 6 ? "// " + title : (L.title == 8 ? "> " + title + "_" : title);
+                const float w = juce::GlyphArrangement::getStringWidth (mono, txt) + (L.title == 6 ? 4.0f : 14.0f);
+                auto t = juce::Rectangle<float> (inner.getX() + 10.0f, inner.getY() + 5.0f, w, 15.0f);
+                g.setFont (mono);
+                if (L.title == 7)
+                {
+                    g.setColour (OctoLook::glitchCyan);    g.fillRect (t.translated (-2.0f, 0.0f));
+                    g.setColour (OctoLook::glitchMagenta); g.fillRect (t.translated (2.0f, 0.0f));
+                    g.setColour (accent ? slime : ink);    g.fillRect (t);
+                    g.setColour (accent ? onSlime() : slime);
+                    g.drawText (txt, t, juce::Justification::centred);
+                }
+                else if (L.title == 8)
+                {
+                    g.setColour (ink.withAlpha (0.85f)); g.fillRect (t);
+                    g.setColour (slime.brighter (0.3f));
+                    g.drawText (txt, t.reduced (6.0f, 0.0f), juce::Justification::centredLeft);
+                    g.setColour (slime.withAlpha (0.6f));
+                    g.drawLine (t.getRight() + 6.0f, t.getCentreY(), inner.getRight() - 12.0f, t.getCentreY(), 1.0f);
+                }
+                else
+                {
+                    g.setColour (OctoLook::glitchCyan.withAlpha (0.8f));    g.drawText (txt, t.translated (-1.2f, 0.0f), juce::Justification::centredLeft);
+                    g.setColour (OctoLook::glitchMagenta.withAlpha (0.8f)); g.drawText (txt, t.translated (1.2f, 0.0f), juce::Justification::centredLeft);
+                    g.setColour (accent ? slime.darker (0.3f) : ink);       g.drawText (txt, t, juce::Justification::centredLeft);
+                    g.setColour ((L.lightOutline ? juce::Colour (0xfffff8ec) : ink).withAlpha (0.4f));
+                    g.drawLine (t.getRight() + 6.0f, t.getCentreY(), inner.getRight() - 12.0f, t.getCentreY(), 1.0f);
+                }
+                break;
+            }
             default:
                 g.setColour (accent ? slime : cream.withAlpha (0.55f));
                 g.setFont (juce::FontOptions (11.5f, juce::Font::bold));
