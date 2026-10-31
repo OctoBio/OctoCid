@@ -255,22 +255,23 @@ namespace KnobStyles
     //==========================================================================
     // Variantes « tête de poulet »
     //==========================================================================
-    inline constexpr int chickenCount = 10;
+    inline constexpr int chickenCount = 16;
     inline const char* chickenNames[chickenCount] = {
         "A  Bakelite noire", "B  Imprime creme", "C  Vert bave", "D  Fin + echelle 0-10",
-        "E  Jupe graduee", "F  BD main levee", "G  Geometrique", "H  Glitch split", "I  Glitch neon", "J  Glitch pixel" };
+        "E  Jupe graduee", "F  BD main levee", "G  Geometrique", "H  Glitch split", "I  Glitch neon", "J  Glitch pixel",
+        "N2 Neon creux", "N3 Neon cyan/magenta", "N4 Neon anneau", "N5 Neon LED", "N6 Neon violet", "N7 Neon double" };
 
     // Silhouette : disque + pointe vers le haut (angle 0 = midi)
     inline juce::Path chickenShape (float br, float tip, float width = 0.62f)
     {
+        // Contour unique (disque + pointe fusionnés) : propre en trait comme en remplissage
+        const float th = std::asin (juce::jlimit (0.1f, 0.95f, width));
         juce::Path head;
-        head.addEllipse (-br, -br, br * 2, br * 2);
-        juce::Path beak;
-        beak.startNewSubPath (-br * width, -br * 0.55f);
-        beak.quadraticTo (-br * width * 0.55f, -tip * 0.88f, 0.0f, -tip);
-        beak.quadraticTo (br * width * 0.55f, -tip * 0.88f, br * width, -br * 0.55f);
-        beak.closeSubPath();
-        head.addPath (beak);
+        head.startNewSubPath (br * std::sin (th), -br * std::cos (th));
+        head.addCentredArc (0.0f, 0.0f, br, br, 0.0f, th, juce::MathConstants<float>::twoPi - th);
+        head.quadraticTo (-br * width * 0.55f, -tip * 0.88f, 0.0f, -tip);
+        head.quadraticTo (br * width * 0.55f, -tip * 0.88f, br * std::sin (th), -br * std::cos (th));
+        head.closeSubPath();
         return head;
     }
 
@@ -505,6 +506,112 @@ namespace KnobStyles
                     }
                     g.setColour (inkC);
                     g.drawLine ({ c.getPointOnCircumference (br * 0.1f, a), c.getPointOnCircumference (r * 0.62f, a) }, lw * 1.1f);
+                }
+                break;
+            }
+
+            case 10: case 11: case 12: case 13: case 14: case 15:   // variantes néon
+            {
+                const auto cyan = juce::Colour (0xff00e8ff), mag = juce::Colour (0xffff2ac8), vio = juce::Colour (0xffc070ff);
+                const auto black = juce::Colour (0xff141216);
+                auto neon = [&] (const juce::Path& p, juce::Colour col, float w, const juce::AffineTransform& t)
+                {
+                    g.setColour (col.withAlpha (0.14f)); g.strokePath (p, juce::PathStrokeType (w * 5.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), t);
+                    g.setColour (col.withAlpha (0.30f)); g.strokePath (p, juce::PathStrokeType (w * 2.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), t);
+                    g.setColour (col);                   g.strokePath (p, juce::PathStrokeType (w,        juce::PathStrokeType::curved, juce::PathStrokeType::rounded), t);
+                    g.setColour (juce::Colours::white.withAlpha (0.55f));
+                    g.strokePath (p, juce::PathStrokeType (w * 0.35f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), t);
+                };
+                const float from = bipolar ? 0.5f : 0.0f;
+                const float t0 = juce::jmin (from, pos), t1 = juce::jmax (from, pos);
+                auto blocks = [&] (juce::Point<float> off, juce::Colour on, juce::Colour offc, bool dots, float sizeK)
+                {
+                    const int nb = dots ? 13 : 15;
+                    for (int i = 0; i < nb; ++i)
+                    {
+                        const float t = (float) i / (float) (nb - 1);
+                        const bool lit = enabled && t >= t0 - 0.001f && t <= t1 + 0.001f;
+                        if (! lit && offc.isTransparent()) continue;
+                        const float aa = start + t * (end - start);
+                        const auto pc = c.getPointOnCircumference (r * 0.88f, aa) + off;
+                        if (dots)
+                        {
+                            const float d = r * 0.11f * sizeK;
+                            if (lit) { g.setColour (on.withAlpha (0.3f)); g.fillEllipse (juce::Rectangle<float> (d * 2.2f, d * 2.2f).withCentre (pc)); }
+                            g.setColour (lit ? on : offc); g.fillEllipse (juce::Rectangle<float> (d, d).withCentre (pc));
+                        }
+                        else
+                        {
+                            juce::Path b; const float bw = r * 0.09f * sizeK, bh = r * 0.17f;
+                            b.addRectangle (-bw * 0.5f, -r * 0.97f, bw, bh);
+                            g.setColour (lit ? on : offc);
+                            g.fillPath (b, juce::AffineTransform::rotation (aa).translated (c + off));
+                        }
+                    }
+                };
+                const float br = r * 0.44f;
+                auto head = chickenShape (br, r * 0.72f, 0.62f);
+                auto index = [&] (juce::Colour col, float w)
+                {
+                    juce::Path ip; ip.startNewSubPath (c.getPointOnCircumference (br * 0.1f, a)); ip.lineTo (c.getPointOnCircumference (r * 0.64f, a));
+                    neon (ip, col, w, {});
+                };
+
+                switch (v)
+                {
+                    case 10:   // creux : tête transparente teintée, contour néon
+                        blocks ({}, acc, inkC.withAlpha (0.22f), false, 1.0f);
+                        g.setColour (black.withAlpha (0.35f)); g.fillPath (head, xf);
+                        neon (head, acc, lw * 0.8f, xf);
+                        index (acc, lw * 0.9f);
+                        break;
+                    case 11:   // contour magenta, filet cyan, blocs verts
+                        blocks ({ -r * 0.04f, 0 }, cyan.withAlpha (0.6f), juce::Colours::transparentBlack, false, 1.0f);
+                        blocks ({  r * 0.04f, 0 }, mag.withAlpha (0.6f), juce::Colours::transparentBlack, false, 1.0f);
+                        blocks ({}, acc, inkC.withAlpha (0.22f), false, 1.0f);
+                        g.setColour (black); g.fillPath (head, xf);
+                        neon (head, mag, lw * 0.8f, xf);
+                        index (cyan, lw * 0.9f);
+                        break;
+                    case 12:   // anneau néon continu (fantômes cyan/magenta) au lieu des blocs
+                    {
+                        juce::Path track; track.addCentredArc (c.x, c.y, r * 0.86f, r * 0.86f, 0.0f, start, end, true);
+                        g.setColour (inkC.withAlpha (0.25f)); g.strokePath (track, juce::PathStrokeType (lw * 0.8f));
+                        if (enabled && t1 - t0 > 0.002f)
+                        {
+                            juce::Path arc; arc.addCentredArc (c.x, c.y, r * 0.86f, r * 0.86f, 0.0f, start + t0 * (end - start), start + t1 * (end - start), true);
+                            g.setColour (cyan.withAlpha (0.6f)); g.strokePath (arc, juce::PathStrokeType (lw * 0.8f), juce::AffineTransform::translation (-r * 0.04f, 0));
+                            g.setColour (mag.withAlpha (0.6f));  g.strokePath (arc, juce::PathStrokeType (lw * 0.8f), juce::AffineTransform::translation ( r * 0.04f, 0));
+                            neon (arc, acc, lw * 1.0f, {});
+                        }
+                        g.setColour (black); g.fillPath (head, xf);
+                        g.setColour (acc.withAlpha (0.8f)); g.strokePath (head, juce::PathStrokeType (lw * 0.6f), xf);
+                        index (acc, lw * 0.9f);
+                        break;
+                    }
+                    case 13:   // LED rondes lumineuses, tête noire sans contour
+                        blocks ({}, acc, inkC.withAlpha (0.2f), true, 1.0f);
+                        g.setColour (cyan.withAlpha (0.7f)); g.fillPath (head, xf.translated (-r * 0.05f, 0));
+                        g.setColour (mag.withAlpha (0.7f));  g.fillPath (head, xf.translated ( r * 0.05f, 0));
+                        g.setColour (black); g.fillPath (head, xf);
+                        index (acc, lw * 1.0f);
+                        break;
+                    case 14:   // contour violet assorti au portail, index et blocs verts
+                        blocks ({}, acc, inkC.withAlpha (0.22f), false, 1.0f);
+                        g.setColour (black); g.fillPath (head, xf);
+                        neon (head, vio, lw * 0.8f, xf);
+                        index (acc, lw * 0.9f);
+                        break;
+                    default:   // 15 : double contour (vert extérieur, cyan intérieur), blocs fins
+                    {
+                        blocks ({}, acc, inkC.withAlpha (0.2f), false, 0.6f);
+                        g.setColour (black); g.fillPath (head, xf);
+                        neon (head, acc, lw * 0.7f, xf);
+                        auto inner = chickenShape (br * 0.72f, r * 0.55f, 0.62f);
+                        neon (inner, cyan, lw * 0.45f, xf);
+                        index (acc, lw * 0.8f);
+                        break;
+                    }
                 }
                 break;
             }
