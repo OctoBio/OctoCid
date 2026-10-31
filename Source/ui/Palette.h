@@ -113,7 +113,16 @@ namespace OctoLook
         bool  brackets = false;     // seulement des équerres aux coins
         float scan = 0.0f;          // lignes de balayage sur les panneaux (opacité)
         int   glitchBars = 0;       // barres décalées sur les bords des panneaux
+        bool  glitchControls = false; // sélecteurs / interrupteurs / boutons en mode glitch
     };
+    // Zones qui gardent le style simple (le séquenceur) : propriété « plainStyle » sur un parent
+    inline bool isPlain (const juce::Component* c)
+    {
+        for (; c != nullptr; c = c->getParentComponent())
+            if (c->getProperties().contains ("plainStyle")) return true;
+        return false;
+    }
+    inline juce::Font monoFont (float h) { return juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), h, juce::Font::bold)); }
     inline const juce::Colour glitchCyan { 0xff00e8ff }, glitchMagenta { 0xffff2ac8 };
 
     inline const Look looks[] =
@@ -132,9 +141,13 @@ namespace OctoLook
         { "Glitch 3 - VHS",         5, 0.0f, 0.0f, 1.2f, 2, false, 7, 0.34f, 0.82f, 0.7f,  true,  6.0f, 2.5f, false, 0.10f, 3 },
         { "Glitch 4 - terminal",    5, 0.0f, 0.0f, 1.2f, 2, false, 8, 0.36f, 0.84f, 1.0f,  false, 0.0f, 0.0f, false, 0.08f, 0 },
         { "Glitch 5 - fort",        5, 0.0f, 0.0f, 2.0f, 2, false, 7, 0.32f, 0.82f, 0.9f,  true,  12.0f, 4.0f, false, 0.12f, 6 },
+        // Glitch 5 + potards et sélecteurs glitch (3 variantes de potard)
+        { "Glitch fort - potard split",  7, 0.0f, 0.0f, 2.0f, 2, false, 7, 0.32f, 0.82f, 0.9f, true, 12.0f, 4.0f, false, 0.12f, 6, true },
+        { "Glitch fort - potard neon",   8, 0.0f, 0.0f, 2.0f, 2, false, 7, 0.32f, 0.82f, 0.9f, true, 12.0f, 4.0f, false, 0.12f, 6, true },
+        { "Glitch fort - potard pixel",  9, 0.0f, 0.0f, 2.0f, 2, false, 7, 0.32f, 0.82f, 0.9f, true, 12.0f, 4.0f, false, 0.12f, 6, true },
     };
     inline constexpr int numLooks = (int) (sizeof (looks) / sizeof (looks[0]));
-    inline constexpr int defaultLook = 7;
+    inline constexpr int defaultLook = 13;
     inline int current = defaultLook;
     inline const Look& get() { return looks[juce::jlimit (0, numLooks - 1, current)]; }
     inline void apply (int index) { current = juce::jlimit (0, numLooks - 1, index); }

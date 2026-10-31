@@ -265,9 +265,33 @@ namespace octoui
             OctoLook::shape (g, r, rad, panelHi, 0.75f);
 
             const float w = r.getWidth() / (float) n;
+            const bool gl = OctoLook::get().glitchControls && ! OctoLook::isPlain (this);
             for (int i = 0; i < n; ++i)
             {
                 auto seg = juce::Rectangle<float> (r.getX() + w * (float) i, r.getY(), w, r.getHeight());
+                if (gl)
+                {
+                    auto sr = seg.reduced (2.5f, 2.5f);
+                    if (i == index)
+                    {
+                        g.setColour (OctoLook::glitchCyan);    g.fillRect (sr.translated (-2.0f, 0.0f));
+                        g.setColour (OctoLook::glitchMagenta); g.fillRect (sr.translated (2.0f, 0.0f));
+                        g.setColour (slime);                   g.fillRect (sr);
+                    }
+                    else if (i == hover)
+                    {
+                        g.setColour (cream.withAlpha (0.08f)); g.fillRect (sr);
+                    }
+                    if (i > 0)
+                    {
+                        g.setColour (ink.withAlpha (0.25f));
+                        g.drawVerticalLine ((int) seg.getX(), seg.getY() + 4.0f, seg.getBottom() - 4.0f);
+                    }
+                    g.setColour (i == index ? ink : cream.withAlpha (0.8f));
+                    g.setFont (OctoLook::monoFont (juce::jmin (12.0f, r.getHeight() * 0.5f)));
+                    g.drawFittedText (texts[i].toUpperCase(), seg.toNearestInt().reduced (2, 0), juce::Justification::centred, 1, 0.6f);
+                    continue;
+                }
                 if (i == index)
                 {
                     g.setColour (slime);
@@ -282,8 +306,11 @@ namespace octoui
                 g.setFont (juce::FontOptions (juce::jmin (13.0f, r.getHeight() * 0.5f), juce::Font::bold));
                 g.drawFittedText (texts[i], seg.toNearestInt().reduced (2, 0), juce::Justification::centred, 1, 0.7f);
             }
-            g.setColour (ink);
-            g.drawRoundedRectangle (r, rad, OctoLook::get().outline * 0.75f);
+            if (! gl)
+            {
+                g.setColour (ink);
+                g.drawRoundedRectangle (r, rad, OctoLook::get().outline * 0.75f);
+            }
         }
 
         void mouseDown (const juce::MouseEvent& e) override
@@ -314,9 +341,16 @@ namespace octoui
     // Logo OctoCid : texte épais et une goutte de bave sous le « C »
     //==========================================================================
     inline bool showLogo = true;   // (captures de test)
+    inline juce::Image logoImage;  // logo illustré (intégré au plugin)
     inline void drawLogo (juce::Graphics& g, juce::Rectangle<float> r)
     {
         if (! showLogo) return;
+        if (logoImage.isValid())
+        {
+            g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
+            g.drawImage (logoImage, r, juce::RectanglePlacement::xLeft | juce::RectanglePlacement::yMid | juce::RectanglePlacement::onlyReduceInSize);
+            return;
+        }
         using namespace OctoColours;
         juce::GlyphArrangement ga;
         const juce::Font f (juce::FontOptions (r.getHeight() * 0.78f, juce::Font::bold));

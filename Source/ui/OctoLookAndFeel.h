@@ -114,6 +114,28 @@ public:
     void drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool over, bool) override
     {
         using namespace OctoColours;
+        if (OctoLook::get().glitchControls && ! OctoLook::isPlain (&b))
+        {
+            auto r = b.getLocalBounds().toFloat().reduced (2.0f);
+            const float th = juce::jmin (r.getHeight(), 20.0f);
+            auto box = juce::Rectangle<float> (r.getX() + 2.0f, r.getCentreY() - th * 0.5f, th * 2.0f, th);
+            const bool on = b.getToggleState();
+            if (on)
+            {
+                g.setColour (OctoLook::glitchCyan);    g.fillRect (box.translated (-2.0f, 0.0f));
+                g.setColour (OctoLook::glitchMagenta); g.fillRect (box.translated (2.0f, 0.0f));
+            }
+            g.setColour (on ? slime : (over ? panelHi.brighter (0.1f) : panelHi));
+            g.fillRect (box);
+            g.setColour (ink); g.drawRect (box, 1.5f);
+            const float d = th - 6.0f;
+            const float kx = on ? box.getRight() - 3.0f - d : box.getX() + 3.0f;
+            g.setColour (ink); g.fillRect (kx, box.getY() + 3.0f, d, d);
+            g.setColour (cream);
+            g.setFont (OctoLook::monoFont (13.0f));
+            g.drawText (b.getButtonText().toUpperCase(), r.withTrimmedLeft (box.getWidth() + 10.0f), juce::Justification::centredLeft);
+            return;
+        }
         auto r = b.getLocalBounds().toFloat().reduced (2.0f);
         const float th = juce::jmin (r.getHeight(), 22.0f);
         auto pill = juce::Rectangle<float> (r.getX(), r.getCentreY() - th * 0.5f, th * 1.9f, th);

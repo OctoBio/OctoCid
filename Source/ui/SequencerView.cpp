@@ -77,6 +77,7 @@ namespace
 //==============================================================================
 SequencerView::SequencerView (OctoCidAudioProcessor& p) : processor (p)
 {
+    getProperties().set ("plainStyle", true);   // le séquenceur garde le style simple
     setWantsKeyboardFocus (true);
 
     for (int i = 0; i < 8; ++i)

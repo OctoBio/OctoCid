@@ -6,6 +6,8 @@ namespace
     // Charge le fond illustré du décor courant (intégré au plugin), une seule fois par image
     void loadDecorImages()
     {
+        if (! octoui::logoImage.isValid())
+            octoui::logoImage = juce::ImageCache::getFromMemory (BinaryData::logo_glitch_png, BinaryData::logo_glitch_pngSize);
         const char* name = OctoDecor::get().image;
         if (name == nullptr) return;
         int size = 0;
@@ -136,7 +138,7 @@ void OctoCidAudioProcessorEditor::Content::paint (juce::Graphics& g)
     g.fillRect (e.topBar);
     g.setColour (ink);
     g.fillRect (e.topBar.withTop (e.topBar.getBottom() - 2));
-    octoui::drawLogo (g, juce::Rectangle<float> (16.0f, 6.0f, 150.0f, 40.0f));
+    octoui::drawLogo (g, juce::Rectangle<float> (8.0f, 5.0f, 190.0f, 42.0f));
 
     // LED MIDI (verte sur une note, crème cerclée sur un accent)
     const bool on = e.displayedNote >= 0;
@@ -273,9 +275,9 @@ void OctoCidAudioProcessorEditor::resized()
     content.setTransform (juce::AffineTransform::scale (z));
 
     topBar = { 0, 0, kWidth, 52 };
-    ledArea = { 172, 21, 10, 10 };
-    prevButton.setBounds (196, 13, 26, 26);
-    presetBox.setBounds (226, 13, 232, 26);
+    ledArea = { 204, 21, 10, 10 };
+    prevButton.setBounds (222, 13, 26, 26);
+    presetBox.setBounds (252, 13, 208, 26);
     nextButton.setBounds (462, 13, 26, 26);
     seqToggle.setBounds (510, 13, 90, 26);
     snailToggle.setBounds (608, 13, 118, 26);

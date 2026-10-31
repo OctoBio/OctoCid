@@ -255,10 +255,10 @@ namespace KnobStyles
     //==========================================================================
     // Variantes « tête de poulet »
     //==========================================================================
-    inline constexpr int chickenCount = 7;
+    inline constexpr int chickenCount = 10;
     inline const char* chickenNames[chickenCount] = {
         "A  Bakelite noire", "B  Imprime creme", "C  Vert bave", "D  Fin + echelle 0-10",
-        "E  Jupe graduee", "F  BD main levee", "G  Geometrique" };
+        "E  Jupe graduee", "F  BD main levee", "G  Geometrique", "H  Glitch split", "I  Glitch neon", "J  Glitch pixel" };
 
     // Silhouette : disque + pointe vers le haut (angle 0 = midi)
     inline juce::Path chickenShape (float br, float tip, float width = 0.62f)
@@ -432,6 +432,80 @@ namespace KnobStyles
                 g.fillPath (head, xf);
                 g.setColour (inkC);
                 g.fillEllipse (juce::Rectangle<float> (lw * 2.2f, lw * 2.2f).withCentre (c.getPointOnCircumference (r * 0.50f, a)));
+                break;
+            }
+
+            case 7:   // H — glitch « split » : tête crème, fantômes cyan / magenta, arc en blocs
+            case 8:   // I — glitch néon : tête noire, contour vert lumineux
+            case 9:   // J — glitch pixel : tête rayée de balayage, tranche décalée, arc en pixels
+            {
+                const auto cyan = juce::Colour (0xff00e8ff), mag = juce::Colour (0xffff2ac8);
+                // arc segmenté (blocs)
+                const int nb = 15;
+                const float from = bipolar ? 0.5f : 0.0f;
+                auto blocks = [&] (juce::Point<float> off, juce::Colour on, juce::Colour offc)
+                {
+                    for (int i = 0; i < nb; ++i)
+                    {
+                        const float t = (float) i / (float) (nb - 1);
+                        const bool lit = enabled && (t >= juce::jmin (from, pos) - 0.001f && t <= juce::jmax (from, pos) + 0.001f);
+                        const float aa = start + t * (end - start);
+                        juce::Path b;
+                        const float bw = r * (v == 9 ? 0.13f : 0.09f), bh = r * (v == 9 ? 0.13f : 0.17f);
+                        b.addRectangle (-bw * 0.5f, -r * 0.97f, bw, bh);
+                        if (! lit && offc.isTransparent()) continue;
+                        g.setColour (lit ? on : offc);
+                        g.fillPath (b, juce::AffineTransform::rotation (aa).translated (c + off));
+                    }
+                };
+                if (v == 8)
+                {
+                    blocks ({ -r * 0.05f, 0 }, cyan.withAlpha (0.7f), juce::Colours::transparentBlack);
+                    blocks ({  r * 0.05f, 0 }, mag.withAlpha (0.7f), juce::Colours::transparentBlack);
+                }
+                blocks ({}, acc, inkC.withAlpha (0.22f));
+
+                const float br = r * 0.44f;
+                auto head = chickenShape (br, r * 0.72f, 0.62f);
+                if (v == 7)
+                {
+                    g.setColour (cyan.withAlpha (0.9f)); g.fillPath (head, xf.translated (-r * 0.13f, r * 0.02f));
+                    g.setColour (mag.withAlpha (0.9f));  g.fillPath (head, xf.translated ( r * 0.13f, -r * 0.02f));
+                    g.setColour (inkC); g.strokePath (head, juce::PathStrokeType (lw * 1.6f), xf);
+                    g.setColour (paper); g.fillPath (head, xf);
+                    g.setColour (inkC);
+                    g.drawLine ({ c.getPointOnCircumference (br * 0.1f, a), c.getPointOnCircumference (r * 0.62f, a) }, lw * 1.1f);
+                }
+                else if (v == 8)
+                {
+                    g.setColour (acc.withAlpha (0.25f)); g.strokePath (head, juce::PathStrokeType (lw * 3.0f), xf);
+                    g.setColour (juce::Colour (0xff141216)); g.fillPath (head, xf);
+                    g.setColour (acc); g.strokePath (head, juce::PathStrokeType (lw * 0.8f), xf);
+                    g.drawLine ({ c.getPointOnCircumference (br * 0.1f, a), c.getPointOnCircumference (r * 0.64f, a) }, lw * 1.0f);
+                    g.setColour (cyan.withAlpha (0.6f));
+                    g.drawLine ({ c.getPointOnCircumference (br * 0.1f, a).translated (-1.2f, 0), c.getPointOnCircumference (r * 0.64f, a).translated (-1.2f, 0) }, lw * 0.5f);
+                }
+                else
+                {
+                    g.setColour (inkC); g.strokePath (head, juce::PathStrokeType (lw * 1.6f), xf);
+                    g.setColour (paper); g.fillPath (head, xf);
+                    {
+                        juce::Graphics::ScopedSaveState ss (g);
+                        juce::Path hp (head); hp.applyTransform (xf);
+                        g.reduceClipRegion (hp);
+                        g.setColour (inkC.withAlpha (0.22f));
+                        const auto hb = hp.getBounds();
+                        for (float y = hb.getY(); y < hb.getBottom(); y += juce::jmax (2.0f, r * 0.08f)) g.fillRect (hb.getX(), y, hb.getWidth(), 1.0f);
+                    }
+                    // tranche décalée
+                    {
+                        juce::Graphics::ScopedSaveState ss (g);
+                        g.reduceClipRegion (juce::Rectangle<float> (c.x - r, c.y - r * 0.12f, r * 2.0f, r * 0.14f).toNearestInt());
+                        g.setColour (mag.withAlpha (0.85f)); g.fillPath (head, xf.translated (r * 0.12f, 0));
+                    }
+                    g.setColour (inkC);
+                    g.drawLine ({ c.getPointOnCircumference (br * 0.1f, a), c.getPointOnCircumference (r * 0.62f, a) }, lw * 1.1f);
+                }
                 break;
             }
 
