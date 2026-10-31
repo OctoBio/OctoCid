@@ -9,7 +9,7 @@ namespace octoui
     // Panneau « cartoon » : fond arrondi, ombre portée, titre en petites capitales
     //==========================================================================
     inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, bool accent = false,
-                           juce::Point<float> origin = {})
+                           juce::Point<float> origin = {}, float alphaOverride = -1.0f)
     {
         using namespace OctoColours;
         const auto& L = OctoLook::get();
@@ -18,7 +18,8 @@ namespace octoui
         const bool straddle = title.isNotEmpty() && (L.title == 1 || L.title == 3);
         auto inner = r.withTrimmedRight (L.shadow == 1 ? 3.0f : 0.0f).withTrimmedBottom (L.shadow == 1 ? 3.0f : 0.0f)
                       .withTrimmedTop (straddle ? 8.0f : 0.0f);
-        OctoLook::shape (g, inner, L.panelR, fill.withMultipliedAlpha (OctoDecor::get().panelAlpha), 1.0f, &origin);
+        const float alpha = alphaOverride >= 0.0f ? alphaOverride : (L.alpha >= 0.0f ? L.alpha : OctoDecor::get().panelAlpha);
+        OctoLook::shape (g, inner, L.panelR, fill.withMultipliedAlpha (alpha), 1.0f, &origin);
 
         // Vis aux coins (style rack)
         if (L.screws)
@@ -70,6 +71,32 @@ namespace octoui
                 g.setColour (accent ? onSlime() : ink);
                 g.setFont (f);
                 g.drawText (title, tag, juce::Justification::centred);
+                break;
+            }
+            case 4:   // épuré : petites capitales espacées + filet fin jusqu'au bord
+            {
+                const juce::Font tf (juce::FontOptions (10.5f, juce::Font::bold));
+                juce::String spaced; for (auto ch : title) { spaced << juce::String::charToString (ch) << " "; }
+                spaced = spaced.trimEnd();
+                const float w = juce::GlyphArrangement::getStringWidth (tf, spaced);
+                auto t = juce::Rectangle<float> (inner.getX() + 12.0f, inner.getY() + 5.0f, w + 4.0f, 13.0f);
+                g.setColour (accent ? slime.darker (0.3f) : ink.withAlpha (0.85f));
+                g.setFont (tf);
+                g.drawText (spaced, t, juce::Justification::centredLeft);
+                g.setColour ((L.lightOutline ? juce::Colour (0xfffff8ec) : ink).withAlpha (0.35f));
+                g.drawLine (t.getRight() + 6.0f, t.getCentreY(), inner.getRight() - 12.0f, t.getCentreY(), 1.0f);
+                break;
+            }
+            case 5:   // pastille compacte à l'intérieur
+            {
+                const juce::Font tf (juce::FontOptions (10.5f, juce::Font::bold));
+                const float w = juce::GlyphArrangement::getStringWidth (tf, title) + 14.0f;
+                auto t = juce::Rectangle<float> (inner.getX() + 10.0f, inner.getY() + 5.0f, w, 15.0f);
+                g.setColour (accent ? slime : ink.withAlpha (0.85f));
+                g.fillRoundedRectangle (t, 7.5f);
+                g.setColour (accent ? onSlime() : juce::Colour (0xfff6efdf));
+                g.setFont (tf);
+                g.drawText (title, t, juce::Justification::centred);
                 break;
             }
             default:

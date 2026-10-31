@@ -102,7 +102,11 @@ namespace OctoLook
         float outline;    // épaisseur des contours
         int   shadow;     // 0 douce, 1 décalée « impression », 2 aucune
         bool  screws;     // vis aux coins des panneaux (façon rack)
-        int   title;      // 0 simple, 1 étiquette pleine, 2 gravé souligné, 3 bulle
+        int   title;      // 0 simple, 1 étiquette pleine, 2 gravé souligné, 3 bulle, 4 épuré + filet, 5 pastille
+        float alpha = -1.0f;        // opacité des panneaux (-1 = celle du décor)
+        float seqAlpha = -1.0f;     // opacité du panneau séquenceur
+        float outlineAlpha = 1.0f;  // opacité des contours
+        bool  lightOutline = false; // contour clair (verre) au lieu de l'encre
     };
 
     inline const Look looks[] =
@@ -110,6 +114,11 @@ namespace OctoLook
         { "Atelier (impression)", 1,  6.0f, 4.0f, 2.0f, 1, false, 1 },
         { "Rack vintage",         3,  2.0f, 3.0f, 1.5f, 2, true,  2 },
         { "BD bulles",            5, 16.0f, 10.0f, 2.5f, 1, false, 3 },
+        { "Epure A - verre clair",    5, 6.0f, 5.0f, 1.0f, 2, false, 4, 0.50f, 0.86f, 0.55f, true  },
+        { "Epure B - trait d'encre",  5, 4.0f, 4.0f, 1.2f, 2, false, 4, 0.58f, 0.88f, 0.70f, false },
+        { "Epure C - sans contour",   5, 8.0f, 6.0f, 0.0f, 0, false, 5, 0.45f, 0.86f, 0.0f,  false },
+        { "Epure D - BD allege",      5, 8.0f, 7.0f, 2.0f, 1, false, 3, 0.50f, 0.88f, 1.0f,  false },
+        { "Epure E - tres transparent", 5, 5.0f, 4.0f, 1.0f, 2, false, 4, 0.32f, 0.80f, 0.6f, true  },
     };
     inline constexpr int numLooks = (int) (sizeof (looks) / sizeof (looks[0]));
     inline int current = 2;
@@ -141,8 +150,11 @@ namespace OctoLook
         }
         g.setColour (fill);
         g.fillRoundedRectangle (r, radius);
-        g.setColour (ink);
-        g.drawRoundedRectangle (r, radius, L.outline * outlineScale);
+        if (L.outline > 0.0f && L.outlineAlpha > 0.0f)
+        {
+            g.setColour ((L.lightOutline ? juce::Colour (0xfffff8ec) : ink).withAlpha (L.outlineAlpha));
+            g.drawRoundedRectangle (r, radius, L.outline * juce::jmax (1.0f, outlineScale));
+        }
     }
 }
 
@@ -302,9 +314,10 @@ namespace OctoDecor
     {
         if (get().bolts != 6 || ! bgBlur.isValid()) return false;
         juce::Graphics::ScopedSaveState ss (g);
-        g.reduceClipRegion (shape);
-        g.addTransform (juce::AffineTransform::translation (-origin.x, -origin.y));
-        g.drawImage (bgBlur, { 0.0f, 0.0f, 1000.0f, 620.0f }, juce::RectanglePlacement::stretchToFit);
+        const auto xf = juce::AffineTransform::scale (1000.0f / (float) bgBlur.getWidth(), 620.0f / (float) bgBlur.getHeight())
+                            .translated (-origin.x, -origin.y);
+        g.setFillType (juce::FillType (bgBlur, xf));
+        g.fillPath (shape);
         return true;
     }
 }
