@@ -52,6 +52,7 @@ target_sources(OctoCid PRIVATE
     Source/ui/OctoLookAndFeel.h
     Source/ui/Widgets.h
     Source/ui/Mascot.h
+    Source/ui/Snail.h
     Source/Params.h
     Source/Presets.h
     Source/dsp/DspUtils.h

@@ -117,7 +117,10 @@ namespace OctoLook
     inline void apply (int index) { current = juce::jlimit (0, numLooks - 1, index); }
 
     // Rectangle arrondi avec l'ombre et le contour du style courant
-    inline void shape (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale = 1.0f)
+    inline void shape (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale = 1.0f,
+                       const juce::Point<float>* frostOrigin = nullptr);
+    inline void shapeImpl (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale,
+                           const juce::Point<float>* frostOrigin, bool (*frostFn) (juce::Graphics&, const juce::Path&, juce::Point<float>))
     {
         using namespace OctoColours;
         const auto& L = get();
@@ -130,6 +133,11 @@ namespace OctoLook
         {
             g.setColour (ink);
             g.fillRoundedRectangle (r.translated (2.5f * outlineScale, 2.5f * outlineScale), radius);
+        }
+        if (frostOrigin != nullptr && frostFn != nullptr)
+        {
+            juce::Path p; p.addRoundedRectangle (r, radius);
+            frostFn (g, p, *frostOrigin);
         }
         g.setColour (fill);
         g.fillRoundedRectangle (r, radius);
@@ -152,7 +160,11 @@ namespace OctoDecor
         bool  stripes;     // rayures diagonales
         bool  speed;       // lignes de vitesse horizontales
         float panelAlpha;  // opacité des panneaux (le décor transparaît)
+        const char* image = nullptr;   // fond illustré (bolts == 6)
     };
+
+    // Fond illustré et sa version floutée (verre dépoli sous les panneaux)
+    inline juce::Image bgImage, bgBlur;
 
     inline const Decor decors[] =
     {
@@ -164,6 +176,9 @@ namespace OctoDecor
         { "Papier + vitesse",         2, 1, false, false, true,  0.95f },
         { "Papier + grand eclair",    2, 5, false, false, false, 0.84f },
         { "Jaune + grand eclair",     3, 5, true,  false, false, 0.86f },
+        { "Acide liquide",            2, 6, false, false, false, 0.62f, "acide" },
+        { "Orage acide",              2, 6, false, false, false, 0.70f, "orage" },
+        { "Acide + orage",            2, 6, false, false, false, 0.64f, "acide_orage" },
     };
     inline constexpr int numDecors = (int) (sizeof (decors) / sizeof (decors[0]));
     inline int current = 0;
@@ -197,6 +212,11 @@ namespace OctoDecor
         g.addTransform (juce::AffineTransform::translation (-origin.x, -origin.y));
         const auto paper = juce::Colour (0xfff6efdf);
 
+        if (D.bolts == 6 && bgImage.isValid())
+        {
+            g.drawImage (bgImage, { 0.0f, 0.0f, 1000.0f, 620.0f }, juce::RectanglePlacement::stretchToFit);
+            return;
+        }
         if (D.stripes)
         {
             g.setColour (juce::Colours::white.withAlpha (0.16f));
@@ -271,4 +291,24 @@ namespace OctoDecor
             }
         }
     }
+}
+
+namespace OctoDecor
+{
+    // Verre dépoli : dessine le fond flouté dans la forme donnée (coordonnées du composant)
+    inline bool frost (juce::Graphics& g, const juce::Path& shape, juce::Point<float> origin)
+    {
+        if (get().bolts != 6 || ! bgBlur.isValid()) return false;
+        juce::Graphics::ScopedSaveState ss (g);
+        g.reduceClipRegion (shape);
+        g.addTransform (juce::AffineTransform::translation (-origin.x, -origin.y));
+        g.drawImage (bgBlur, { 0.0f, 0.0f, 1000.0f, 620.0f }, juce::RectanglePlacement::stretchToFit);
+        return true;
+    }
+}
+
+inline void OctoLook::shape (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale,
+                             const juce::Point<float>* frostOrigin)
+{
+    shapeImpl (g, r, radius, fill, outlineScale, frostOrigin, &OctoDecor::frost);
 }

@@ -653,7 +653,7 @@ void SequencerView::paint (juce::Graphics& g)
     using namespace OctoColours;
     using octocid::Gate;
 
-    octoui::drawPanel (g, getLocalBounds().toFloat().reduced (1.0f), {});
+    octoui::drawPanel (g, getLocalBounds().toFloat().reduced (1.0f), {}, false, getPosition().toFloat());
 
     const int nVis = visibleSteps();
     const bool showPlayhead = playingStep >= 0 && playingPattern == shownIndex;

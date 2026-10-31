@@ -89,8 +89,9 @@ void OctoCidAudioProcessorEditor::Drawer::paint (juce::Graphics& g)
     OctoDecor::paint (g, { 0.0f, 0.0f, 1000.0f, 620.0f }, getPosition().toFloat());
     auto r = getLocalBounds().toFloat().reduced (1.0f);
     const float split = r.getWidth() * 0.63f;
-    octoui::drawPanel (g, r.withWidth (split - 4.0f), "SLIME MODS", true);
-    octoui::drawPanel (g, r.withTrimmedLeft (split + 4.0f), "PUNCH + FX");
+    const auto org = getPosition().toFloat();
+    octoui::drawPanel (g, r.withWidth (split - 4.0f), "SLIME MODS", true, org);
+    octoui::drawPanel (g, r.withTrimmedLeft (split + 4.0f), "PUNCH + FX", false, org);
 }
 
 void OctoCidAudioProcessorEditor::Drawer::resized()
@@ -112,7 +113,8 @@ void OctoCidAudioProcessorEditor::Content::paint (juce::Graphics& g)
     OctoDecor::paint (g, getLocalBounds().toFloat());
 
     // Barre du haut (le décor transparaît)
-    g.setColour (panel.withAlpha (0.82f));
+    { juce::Path tb; tb.addRectangle (e.topBar.toFloat()); OctoDecor::frost (g, tb, {}); }
+    g.setColour (panel.withAlpha (OctoDecor::get().bolts == 6 ? 0.6f : 0.82f));
     g.fillRect (e.topBar);
     g.setColour (ink);
     g.fillRect (e.topBar.withTop (e.topBar.getBottom() - 2));

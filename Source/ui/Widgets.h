@@ -8,7 +8,8 @@ namespace octoui
     //==========================================================================
     // Panneau « cartoon » : fond arrondi, ombre portée, titre en petites capitales
     //==========================================================================
-    inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, bool accent = false)
+    inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, bool accent = false,
+                           juce::Point<float> origin = {})
     {
         using namespace OctoColours;
         const auto& L = OctoLook::get();
@@ -17,7 +18,7 @@ namespace octoui
         const bool straddle = title.isNotEmpty() && (L.title == 1 || L.title == 3);
         auto inner = r.withTrimmedRight (L.shadow == 1 ? 3.0f : 0.0f).withTrimmedBottom (L.shadow == 1 ? 3.0f : 0.0f)
                       .withTrimmedTop (straddle ? 8.0f : 0.0f);
-        OctoLook::shape (g, inner, L.panelR, fill.withMultipliedAlpha (OctoDecor::get().panelAlpha));
+        OctoLook::shape (g, inner, L.panelR, fill.withMultipliedAlpha (OctoDecor::get().panelAlpha), 1.0f, &origin);
 
         // Vis aux coins (style rack)
         if (L.screws)
