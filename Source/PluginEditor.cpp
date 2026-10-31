@@ -47,7 +47,12 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
         { { choice (lfoSync, "Sync"), knob (lfoRate, "Rate"), knob (lfoDepth, "Depth"),
             choice (lfoShape, "Forme"), choice (lfoDest, "Destination") } } });
 
-    sections.push_back ({ "SLIME MODS", { 12, 364, 976, 244 }, true,
+    sections.push_back ({ "PUNCH + FX", { 12, 364, 976, 132 }, false,
+        { { knob (punch, "Punch"), knob (punchAttack, "Attaque"),
+            knob (delayMix, "Delay"), choice (delayTime, "Temps"), knob (delayFb, "Feedback"),
+            knob (reverbMix, "Reverb"), knob (reverbDecay, "Decay"), knob (reverbTone, "Tone") } } });
+
+    sections.push_back ({ "SLIME MODS", { 12, 504, 976, 244 }, true,
         { { knob (slideTime, "Slide Time"), knob (slidePunch, "Slide Punch"), choice (sweepSpeed, "Sweep Speed"),
             knob (accentDecay, "Accent Decay"), knob (softAttack, "Soft Attack"), knob (accentThreshold, "Seuil accent") },
           { knob (filterTrack, "Filter Track"), knob (filterFm, "Filter FM"), knob (filterDrive, "Filter Drive"),
@@ -89,7 +94,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
 
     refreshPresetBox();
 
-    setSize (1000, 620);
+    setSize (1000, 760);   // provisoire : la vraie interface (étape 5) revient à ~1000 x 620
     setResizable (false, false);
     startTimerHz (30);
 }

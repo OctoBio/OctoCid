@@ -41,12 +41,28 @@ namespace ParamIDs
     inline const juce::ParameterID driveMix  { "drivemix",  1 };
     inline const juce::ParameterID drivePos  { "drivepos",  1 };
 
+    // Punch + FX
+    inline const juce::ParameterID punch       { "punch",       1 };
+    inline const juce::ParameterID punchAttack { "punchattack", 1 };
+    inline const juce::ParameterID delayMix    { "dlymix",      1 };
+    inline const juce::ParameterID delayTime   { "dlytime",     1 };
+    inline const juce::ParameterID delayFb     { "dlyfb",       1 };
+    inline const juce::ParameterID reverbMix   { "revmix",      1 };
+    inline const juce::ParameterID reverbDecay { "revdecay",    1 };
+    inline const juce::ParameterID reverbTone  { "revtone",     1 };
+
     // LFO
     inline const juce::ParameterID lfoRate  { "lforate",  1 };
     inline const juce::ParameterID lfoSync  { "lfosync",  1 };
     inline const juce::ParameterID lfoDepth { "lfodepth", 1 };
     inline const juce::ParameterID lfoShape { "lfoshape", 1 };
     inline const juce::ParameterID lfoDest  { "lfodest",  1 };
+}
+
+namespace DelaySync
+{
+    inline const juce::StringArray names { "1/16", "1/8T", "1/8", "1/8.", "1/4T", "1/4", "1/4.", "1/2" };
+    inline constexpr double beats[] = { 0.25, 1.0 / 3.0, 0.5, 0.75, 2.0 / 3.0, 1.0, 1.5, 2.0 };
 }
 
 namespace LfoSync

@@ -33,6 +33,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
+## Reverb — référence Mutable Instruments (Émilie Gillet)
+
+La reverb plate d'OctoCid suit la topologie de Griesinger décrite par Jon Dattorro
+(« Effect Design Part 1 », JAES 1997), telle qu'utilisée dans les modules Mutable Instruments
+(https://github.com/pichenettes/eurorack, code DSP sous licence MIT, Copyright (c) 2014 Emilie Gillet).
+Le code d'OctoCid est une réécriture ; aucun fichier n'a été copié.
+
+## Compresseur Punch
+
+Conception d'après D. Giannoulis, M. Massberg, J. D. Reiss, « Digital Dynamic Range Compressor
+Design — A Tutorial and Analysis », JAES 2012 (algorithme publié, code original).
+
+## Drive « Distortion »
+
+Modèle de circuit écrit à partir des valeurs de composants publiées d'une pédale ProCo RAT
+(analyse ElectroSmash). Aucun code tiers.
+
 ## JUCE
 
 OctoCid est construit avec JUCE 8 (https://juce.com), sous les termes de la licence JUCE / AGPLv3.

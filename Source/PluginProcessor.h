@@ -4,6 +4,7 @@
 #include "Params.h"
 #include "dsp/AcidVoice.h"
 #include "dsp/Drive.h"
+#include "dsp/Fx.h"
 
 //==============================================================================
 // OctoCid — moteur sonore + Drive + LFO + Slime Mods + presets d'usine.
@@ -32,7 +33,7 @@ public:
     bool acceptsMidi() const override  { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.1; }
+    double getTailLengthSeconds() const override { return 8.0; }   // queues de delay et de reverb
 
     //==========================================================================
     // Presets d'usine (exposés au DAW comme programmes)
@@ -67,9 +68,21 @@ private:
 
     static constexpr float kKnee = 0.708f, kCeiling = 0.989f;   // -3 dBFS / -0,1 dBFS
 
+    // Limiteur de sécurité : transparent sous -3 dBFS, plafond à -0,1 dBFS
+    static float safetyLimit (float x) noexcept
+    {
+        const float ax = std::abs (x);
+        if (ax <= kKnee)
+            return x;
+        return std::copysign (kKnee + (kCeiling - kKnee) * std::tanh ((ax - kKnee) / (kCeiling - kKnee)), x);
+    }
+
     octocid::AcidVoice voice;
     octocid::Drive drive;
     octocid::ToneShaper toneShaper;
+    octocid::PunchCompressor punch;
+    octocid::PingPongDelay delay;
+    octocid::PlateReverb reverb;
 
     // Oversampling : index 0 = 2x (Normal), 1 = 4x (High)
     std::unique_ptr<juce::dsp::Oversampling<float>> oversamplers[2];
@@ -89,6 +102,7 @@ private:
                            *slideTime, *sweepSpeed, *slidePunch, *accentDecay, *softAttack,
                            *filterTrack, *filterFm, *filterDrive, *subOsc, *subLevel, *muffler,
                            *driveType, *driveAmt, *driveTone, *driveMix, *drivePos,
+                           *punchAmt, *punchAttack, *delayMix, *delayTime, *delayFb, *reverbMix, *reverbDecay, *reverbTone,
                            *lfoRate, *lfoSync, *lfoDepth, *lfoShape, *lfoDest;
     } p {};
 

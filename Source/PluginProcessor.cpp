@@ -18,6 +18,9 @@ OctoCidAudioProcessor::OctoCidAudioProcessor()
     p.subOsc = raw (subOsc);       p.subLevel = raw (subLevel);   p.muffler = raw (muffler);
     p.driveType = raw (driveType); p.driveAmt = raw (driveAmt);   p.driveTone = raw (driveTone);
     p.driveMix = raw (driveMix);   p.drivePos = raw (drivePos);
+    p.punchAmt = raw (ParamIDs::punch); p.punchAttack = raw (punchAttack);
+    p.delayMix = raw (delayMix);   p.delayTime = raw (delayTime); p.delayFb = raw (delayFb);
+    p.reverbMix = raw (reverbMix); p.reverbDecay = raw (reverbDecay); p.reverbTone = raw (reverbTone);
     p.lfoRate = raw (lfoRate);     p.lfoSync = raw (lfoSync);     p.lfoDepth = raw (lfoDepth);
     p.lfoShape = raw (lfoShape);   p.lfoDest = raw (lfoDest);
 }
@@ -50,7 +53,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
     percent (ParamIDs::accent,    "Accent",    50.0f);
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::waveform, "Waveform", StringArray { "Saw", "Square" }, 0));
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::volume, "Volume",
-        NormalisableRange<float> (-48.0f, 6.0f, 0.1f), -3.0f, AudioParameterFloatAttributes().withLabel ("dB")));
+        NormalisableRange<float> (-48.0f, 6.0f, 0.1f), 1.0f, AudioParameterFloatAttributes().withLabel ("dB")));
     layout.add (std::make_unique<AudioParameterInt> (ParamIDs::accentThreshold, "Accent Velocity", 1, 127, 100));
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::quality, "Quality", StringArray { "Normal (2x)", "High (4x)" }, 0));
 
@@ -74,6 +77,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
     percent (ParamIDs::driveTone, "Drive Tone", 60.0f);
     percent (ParamIDs::driveMix,  "Drive Mix", 100.0f);
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::drivePos, "Drive Position", StringArray { "Apres", "Avant" }, 0));
+
+    // --- Punch + FX (tous à zéro par défaut : son sec)
+    percent (ParamIDs::punch, "Punch", 0.0f);
+    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::punchAttack, "Punch Attack", skewed (1.0f, 40.0f, 10.0f, 0.1f), 10.0f, ms));
+    percent (ParamIDs::delayMix, "Delay Mix", 0.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::delayTime, "Delay Time", DelaySync::names, 3));
+    percent (ParamIDs::delayFb, "Delay Feedback", 35.0f);
+    percent (ParamIDs::reverbMix, "Reverb Mix", 0.0f);
+    percent (ParamIDs::reverbDecay, "Reverb Decay", 35.0f);
+    percent (ParamIDs::reverbTone, "Reverb Tone", 50.0f);
 
     // --- LFO
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::lfoRate, "LFO Rate", skewed (0.05f, 20.0f, 2.0f, 0.01f), 2.0f,
@@ -101,6 +114,10 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     monoBuffer.setSize (1, maxBlockSize, false, true, false);
 
+    punch.prepare (sampleRate);
+    delay.prepare (sampleRate);
+    reverb.prepare (sampleRate);
+
     currentQuality = juce::jlimit (0, 1, (int) p.quality->load());
     const double osRate = sampleRate * (double) oversamplers[currentQuality]->getOversamplingFactor();
     voice.prepare (osRate);
@@ -108,6 +125,9 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     updateParams();
     voice.reset();
     drive.reset();
+    punch.reset();
+    delay.reset();
+    reverb.reset();
     toneShaper.prepare (sampleRate);
 
     outputGain.reset (sampleRate, 0.02);
@@ -176,6 +196,21 @@ void OctoCidAudioProcessor::updateParams() noexcept
         drive.reset();               // les états du Drive ne valent rien d'un emplacement à l'autre
     }
     voice.setPreVcaDrive (drivePreVca ? &drive : nullptr);
+
+    // Punch + FX (fréquence de l'hôte)
+    punch.setAmount (p.punchAmt->load() * 0.01f);
+    punch.setAttackMs (p.punchAttack->load());
+    reverb.setParams (p.reverbMix->load() * 0.01f, p.reverbDecay->load() * 0.01f, p.reverbTone->load() * 0.01f);
+    {
+        double bpm = 120.0;
+        if (auto* ph = getPlayHead())
+            if (auto pos = ph->getPosition())
+                if (auto b = pos->getBpm())
+                    bpm = *b;
+        const int t = juce::jlimit (0, DelaySync::names.size() - 1, (int) p.delayTime->load());
+        delay.setParams ((float) (DelaySync::beats[t] * 60.0 / juce::jlimit (20.0, 400.0, bpm)),
+                         p.delayFb->load() * 0.01f, p.delayMix->load() * 0.01f);
+    }
 }
 
 // En lecture, la phase du LFO synchronisé est recalée sur la position du DAW
@@ -273,18 +308,38 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     for (int pos = 0; pos < numSamples; pos += maxBlockSize)
         renderChunk (left + pos, juce::jmin (maxBlockSize, numSamples - pos), midi, pos);
 
+    // Punch (mono), puis delay et reverb (stéréo), puis volume et limiteur de sécurité
+    const bool stereo = buffer.getNumChannels() > 1;
+    float* right = stereo ? buffer.getWritePointer (1) : nullptr;
+
+    const bool usePunch = punch.isActive();
+    const bool useDelay = delay.isActive();
+    const bool useReverb = reverb.isActive();
+
     outputGain.setTargetValue (juce::Decibels::decibelsToGain (p.volume->load(), -60.0f) + 1.0e-6f);
     for (int i = 0; i < numSamples; ++i)
     {
-        // Volume, puis limiteur de sécurité : transparent sous -3 dBFS, plafond à -0,1 dBFS
-        float x = left[i] * outputGain.getNextValue();
-        const float ax = std::abs (x);
-        if (ax > kKnee)
-            x = std::copysign (kKnee + (kCeiling - kKnee) * std::tanh ((ax - kKnee) / (kCeiling - kKnee)), x);
-        left[i] = x;
+        float l = left[i];
+        if (usePunch)
+            l = punch.process (l);
+        float r = l;
+        if (useDelay)  delay.process (l, r);
+        if (useReverb) reverb.process (l, r);
+
+        const float g = outputGain.getNextValue();
+        l = safetyLimit (l * g);
+        r = safetyLimit (r * g);
+
+        if (stereo)
+        {
+            left[i] = l;
+            right[i] = r;
+        }
+        else
+            left[i] = 0.5f * (l + r);   // sortie mono : on replie la stéréo des FX
     }
 
-    for (int ch = 1; ch < buffer.getNumChannels(); ++ch)
+    for (int ch = 2; ch < buffer.getNumChannels(); ++ch)
         buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
 }
 
