@@ -10,15 +10,57 @@
 //==============================================================================
 namespace OctoSnail
 {
-    inline const juce::Colour kInk      { 0xff1d1a17 };
-    inline const juce::Colour kAcid     { 0xff8ef01e };
-    inline const juce::Colour kAcidHi   { 0xffe6ff9a };
-    inline const juce::Colour kSkinHi   { 0xffd6e27a };
-    inline const juce::Colour kSkin     { 0xffa3bb3e };
-    inline const juce::Colour kSkinLo   { 0xff4d6416 };
+    inline const juce::Colour kInk { 0xff1d1a17 };
 
-    inline void draw (juce::Graphics& g, juce::Rectangle<float> area)
+    // Déclinaisons de style (même dessin, autres matières / couleurs / détails)
+    struct Style
     {
+        const char* name;
+        juce::uint32 skinHi, skin, skinLo;                 // peau
+        juce::uint32 acid, acidHi, acidDeep;               // acide (fissures, bave, flaque)
+        juce::uint32 shHi, shMid, shLow, shEdge;           // coquille (dégradé)
+        juce::uint32 grooveLight, bandDark;                // sillon éclairé, bandes
+        juce::uint32 irisHi, irisLo, eyeWhite, eyeEdge, veins;
+        int  shellPattern = 0;    // 0 nature, 1 rayures danger, 2 arc-en-ciel, 3 métal
+        bool spiralPupils = false;
+        bool stitches = false;    // coutures (zombie)
+        bool spikes = false;      // clous (punk)
+        bool glowEyes = false;    // iris lumineux
+    };
+
+    inline const Style styles[] =
+    {
+        { "Acide (original)",  0xffd6e27a, 0xffa3bb3e, 0xff4d6416, 0xff8ef01e, 0xffe6ff9a, 0xff3f9a10,
+          0xffe0a25a, 0xff8f4a22, 0xff55260f, 0xff2e140a, 0xfff3c58a, 0xff3a1a0a,
+          0xffe6ff9a, 0xff2c6a08, 0xfffffbe6, 0xffe9b49a, 0xffc0202a },
+        { "Toxique violet",    0xffc9e070, 0xff8fb238, 0xff3f5a12, 0xffff4fd8, 0xffffc2f2, 0xff9a1080,
+          0xffb27ae8, 0xff5e2e9a, 0xff36165e, 0xff1a0a30, 0xffe0c2ff, 0xff1e0838,
+          0xffffb0f0, 0xff7a0a68, 0xfffffbe6, 0xffe2b0c8, 0xffc0202a },
+        { "Zombie",            0xffc2c9a8, 0xff8e977a, 0xff4a5240, 0xffe2e04a, 0xfffaf8b0, 0xff8a8a10,
+          0xff8a8580, 0xff4a4642, 0xff2c2a28, 0xff141312, 0xffc8c2b8, 0xff141312,
+          0xffd8d8d0, 0xff8a8a84, 0xfff2f0e0, 0xffc8c0a8, 0xff6a5a2a, 0, false, true },
+        { "Lave",              0xffb06a4a, 0xff7a3a2a, 0xff3a1410, 0xffff8a1a, 0xffffe08a, 0xffc03a08,
+          0xff5a5250, 0xff2e2a28, 0xff1a1716, 0xff0a0908, 0xffff9a40, 0xff0a0908,
+          0xffffe08a, 0xffc03a08, 0xfffff0d8, 0xffe8a888, 0xffd02010, 0, false, false, false, true },
+        { "Trip psyche",       0xff9ee8d0, 0xff4fb8a0, 0xff1e5a50, 0xffff5ab0, 0xffffd0ea, 0xffb01070,
+          0xffffe07a, 0xffe06a3a, 0xff8a2a8a, 0xff2a1050, 0xffffffff, 0xff2a1050,
+          0xffffd0ea, 0xffb01070, 0xfffffbe6, 0xffd8c0f0, 0xffc0202a, 2, true },
+        { "Chrome",            0xffc8d4dc, 0xff8494a0, 0xff3a4650, 0xff3ae8ff, 0xffc8f8ff, 0xff0a7a9a,
+          0xfff4f6f8, 0xffa0a8b0, 0xff505860, 0xff1c2024, 0xffffffff, 0xff1c2024,
+          0xffc8f8ff, 0xff0a6a8a, 0xfffafcff, 0xffc8d0dc, 0xff9a2030, 3, false, false, false, true },
+        { "Biohazard",         0xffd6e27a, 0xffa3bb3e, 0xff4d6416, 0xff8ef01e, 0xffe6ff9a, 0xff3f9a10,
+          0xfffff07a, 0xfff2c81a, 0xffb08a08, 0xff4a3a04, 0xfffff8c0, 0xff1d1a17,
+          0xffe6ff9a, 0xff2c6a08, 0xfffffbe6, 0xffe9b49a, 0xffc0202a, 1 },
+        { "Punk",              0xffe2f06a, 0xffaac82a, 0xff4e6a0a, 0xffff2a8a, 0xffffb8d8, 0xffa00a50,
+          0xff6a6a72, 0xff2e2e34, 0xff18181c, 0xff08080a, 0xffb8b8c8, 0xff08080a,
+          0xffff8a8a, 0xffa00a10, 0xfffffbe6, 0xffe9b49a, 0xffc0202a, 0, false, false, true },
+    };
+    inline constexpr int numStyles = (int) (sizeof (styles) / sizeof (styles[0]));
+
+    inline void draw (juce::Graphics& g, juce::Rectangle<float> area, const Style& st = styles[0])
+    {
+        const juce::Colour kAcid (st.acid), kAcidHi (st.acidHi), kAcidDeep (st.acidDeep);
+        const juce::Colour kSkinHi (st.skinHi), kSkin (st.skin), kSkinLo (st.skinLo);
         constexpr float DW = 250.0f, DH = 172.0f;
         const float s = juce::jmin (area.getWidth() / DW, area.getHeight() / DH);
         const auto o = area.getCentre().translated (-DW * 0.5f * s, -DH * 0.5f * s);
@@ -114,6 +156,20 @@ namespace OctoSnail
                 g.setColour (kSkinHi.brighter (0.2f).withAlpha (0.8f));
                 g.fillEllipse (R (x - 0.3f, y - 0.4f, rr, rr));
             }
+            if (st.stitches)   // coutures
+                for (auto seg : { std::pair<juce::Point<float>, juce::Point<float>> ({ 168, 86 }, { 186, 120 }),
+                                  std::pair<juce::Point<float>, juce::Point<float>> ({ 110, 132 }, { 150, 140 }) })
+                {
+                    g.setColour (kInk.withAlpha (0.8f));
+                    g.drawLine ({ P (seg.first.x, seg.first.y), P (seg.second.x, seg.second.y) }, 1.3f * s);
+                    for (int k = 0; k <= 6; ++k)
+                    {
+                        const auto m = seg.first + (seg.second - seg.first) * ((float) k / 6.0f);
+                        const auto d = (seg.second - seg.first); const juce::Point<float> n (-d.y, d.x);
+                        const auto nn = n / n.getDistanceFromOrigin() * 3.5f;
+                        g.drawLine ({ P (m.x - nn.x, m.y - nn.y), P (m.x + nn.x, m.y + nn.y) }, 1.2f * s);
+                    }
+                }
             // rides du cou
             for (int i = 0; i < 4; ++i)
             {
@@ -143,14 +199,25 @@ namespace OctoSnail
             g.fillPath (shell, juce::AffineTransform::translation (4 * s, 5 * s));
             g.setColour (kInk);
             g.strokePath (shell, stroke (6.0f));
-            juce::ColourGradient sg (juce::Colour (0xffe0a25a), P (74, 46), juce::Colour (0xff2e140a), P (140, 135), true);
-            sg.addColour (0.45, juce::Colour (0xff8f4a22));
-            sg.addColour (0.75, juce::Colour (0xff55260f));
+            juce::ColourGradient sg (juce::Colour (st.shHi), P (74, 46), juce::Colour (st.shEdge), P (140, 135), true);
+            sg.addColour (0.45, juce::Colour (st.shMid));
+            sg.addColour (0.75, juce::Colour (st.shLow));
             g.setGradientFill (sg);
             g.fillPath (shell);
 
             g.reduceClipRegion (shell);
 
+            if (st.shellPattern == 1)   // rayures « danger »
+            {
+                g.setColour (kInk.withAlpha (0.85f));
+                for (float x = -160.0f; x < 260.0f; x += 26.0f)
+                {
+                    juce::Path stp;
+                    stp.addQuadrilateral (P (x, 160).x, P (x, 160).y, P (x + 12, 160).x, P (x + 12, 160).y,
+                                          P (x + 132, 0).x, P (x + 132, 0).y, P (x + 120, 0).x, P (x + 120, 0).y);
+                    g.fillPath (stp);
+                }
+            }
             // spirale logarithmique : bandes, sillons, stries de croissance
             const float turns = 2.8f;
             auto spiralPt = [&] (float t)   // t 0 = bord, 1 = centre
@@ -166,11 +233,24 @@ namespace OctoSnail
                 const auto pt = spiralPt ((float) i / (float) N);
                 if (i == 0) groove.startNewSubPath (pt); else groove.lineTo (pt);
             }
+            if (st.shellPattern == 2)   // bandes arc-en-ciel le long de la spirale
+            {
+                for (int i = 0; i < N; ++i)
+                {
+                    const float t0 = (float) i / (float) N, t1 = (float) (i + 1) / (float) N;
+                    const float a = -0.6f + (t0 + 0.5f / turns) * juce::MathConstants<float>::twoPi * turns;
+                    const float rr = SR * 0.98f * std::pow (0.07f, t0 + 0.5f / turns);
+                    juce::ignoreUnused (a, rr, t1);
+                    const auto p0 = spiralPt (t0), p1 = spiralPt (t1);
+                    g.setColour (juce::Colour::fromHSV (std::fmod (t0 * 3.0f, 1.0f), 0.75f, 1.0f, 0.55f));
+                    g.drawLine ({ p0, p1 }, SR * 0.30f * std::pow (0.07f, t0) * 1.0f + 1.0f);
+                }
+            }
             // bandes plus sombres entre les tours
-            g.setColour (juce::Colour (0xff3a1a0a).withAlpha (0.35f));
+            g.setColour (juce::Colour (st.bandDark).withAlpha (st.shellPattern == 1 ? 0.0f : 0.35f));
             g.strokePath (groove, juce::PathStrokeType (SR * 0.22f, juce::PathStrokeType::curved), juce::AffineTransform::rotation (0.5f, sc.x, sc.y));
             // stries de croissance (perpendiculaires au sillon)
-            for (int i = 4; i < N - 30; i += 3)
+            for (int i = 4; i < (st.shellPattern == 3 ? 0 : N - 30); i += 3)
             {
                 const float t = (float) i / (float) N;
                 const auto p0 = spiralPt (t);
@@ -184,8 +264,14 @@ namespace OctoSnail
             // sillon : creux sombre + lèvre éclairée
             g.setColour (kInk.withAlpha (0.9f));
             g.strokePath (groove, stroke (3.2f));
-            g.setColour (juce::Colour (0xfff3c58a).withAlpha (0.55f));
+            g.setColour (juce::Colour (st.grooveLight).withAlpha (0.55f));
             g.strokePath (groove, stroke (1.1f), juce::AffineTransform::translation (-1.4f * s, -1.4f * s));
+            if (st.shellPattern == 3)   // métal : reflets francs
+            {
+                g.setColour (juce::Colours::white.withAlpha (0.55f));
+                for (int k = 0; k < 3; ++k)
+                    g.drawLine ({ P (60 + k * 22.0f, 128), P (110 + k * 22.0f, 26) }, (5.0f - k * 1.5f) * s);
+            }
 
             // reflet spéculaire
             juce::Path spec;
@@ -199,7 +285,7 @@ namespace OctoSnail
             // ébréchure
             g.setColour (juce::Colour (0xff1a0c06));
             g.fillPath (chip);
-            g.setColour (juce::Colour (0xffc48a52));
+            g.setColour (juce::Colour (st.grooveLight).withAlpha (0.8f));
             juce::Path chipEdge; chipEdge.startNewSubPath (P (128, 28)); chipEdge.lineTo (P (138, 30)); chipEdge.lineTo (P (134, 37));
             chipEdge.lineTo (P (142, 38)); chipEdge.lineTo (P (152, 44));
             g.strokePath (chipEdge, stroke (1.6f));
@@ -207,6 +293,18 @@ namespace OctoSnail
         g.setColour (kInk);
         g.strokePath (shell, stroke (3.0f));
 
+        if (st.spikes)   // clous sur le bord de la coquille
+            for (int k = 0; k < 9; ++k)
+            {
+                const float a = -2.9f + (float) k * 0.33f;
+                const auto base = sc.getPointOnCircumference (SR * 0.98f, a + juce::MathConstants<float>::halfPi);
+                const auto tip  = sc.getPointOnCircumference (SR * 1.22f, a + juce::MathConstants<float>::halfPi);
+                const auto side = juce::Point<float> (std::cos (a + juce::MathConstants<float>::halfPi), std::sin (a + juce::MathConstants<float>::halfPi)) * (SR * 0.085f);
+                juce::Path sp; sp.addTriangle (base + side, base - side, tip);
+                g.setColour (juce::Colour (0xffd8dce4)); g.fillPath (sp);
+                g.setColour (kInk); g.strokePath (sp, stroke (1.4f));
+                g.setColour (juce::Colours::white.withAlpha (0.8f)); g.drawLine ({ base + side * 0.4f, tip }, 0.8f * s);
+            }
         // fissures qui laissent fuir l'acide (lueur)
         auto crack = [&] (juce::Point<float> a, juce::Point<float> b, int seed)
         {
@@ -251,7 +349,7 @@ namespace OctoSnail
             drip.cubicTo (P (61.5f, 102), P (63, 92), P (64, 84));
             drip.closeSubPath();
             g.setColour (kInk); g.strokePath (drip, stroke (1.8f));
-            g.setGradientFill (juce::ColourGradient (kAcidHi, P (58, 90), juce::Colour (0xff3f9a10), P (60, 132), false));
+            g.setGradientFill (juce::ColourGradient (kAcidHi, P (58, 90), kAcidDeep, P (60, 132), false));
             g.fillPath (drip);
             g.setColour (juce::Colours::white.withAlpha (0.85f));
             g.fillEllipse (R (56.8f, 125.5f, 1.6f, 2.6f));
@@ -297,9 +395,14 @@ namespace OctoSnail
             // cernes
             g.setColour (juce::Colour (0xff5a2a52).withAlpha (0.55f));
             g.fillEllipse (ball.expanded (rr * 0.18f).translated (0, rr * 0.22f));
+            if (st.glowEyes)
+            {
+                g.setColour (kAcid.withAlpha (0.25f)); g.fillEllipse (ball.expanded (rr * 0.6f));
+                g.setColour (kAcid.withAlpha (0.25f)); g.fillEllipse (ball.expanded (rr * 0.3f));
+            }
             g.setColour (kInk);
             g.fillEllipse (ball.expanded (2.2f * s));
-            juce::ColourGradient eg (juce::Colour (0xfffffbe6), c.translated (-rr * 0.3f, -rr * 0.3f), juce::Colour (0xffe9b49a), c.translated (rr, rr), true);
+            juce::ColourGradient eg (juce::Colour (st.eyeWhite), c.translated (-rr * 0.3f, -rr * 0.3f), juce::Colour (st.eyeEdge), c.translated (rr, rr), true);
             g.setGradientFill (eg);
             g.fillEllipse (ball);
             // veines
@@ -321,24 +424,36 @@ namespace OctoSnail
                         {
                             juce::Path br; br.startNewSubPath (p);
                             br.lineTo (c.getPointOnCircumference (dist * 0.85f, a + 0.35f));
-                            g.setColour (juce::Colour (0xffc0202a).withAlpha (0.7f)); g.strokePath (br, stroke (0.5f));
+                            g.setColour (juce::Colour (st.veins).withAlpha (0.7f)); g.strokePath (br, stroke (0.5f));
                         }
                     }
-                    g.setColour (juce::Colour (0xffc0202a).withAlpha (0.85f));
+                    g.setColour (juce::Colour (st.veins).withAlpha (0.85f));
                     g.strokePath (v, stroke (0.75f));
                 }
                 // iris vert acide + pupille dilatée
                 const auto ic = c.translated (lookX * rr, lookY * rr);
                 const float ir = rr * 0.50f;
-                juce::ColourGradient ig (kAcidHi, ic.translated (-ir * 0.3f, -ir * 0.3f), juce::Colour (0xff2c6a08), ic.translated (ir, ir), true);
+                juce::ColourGradient ig (juce::Colour (st.irisHi), ic.translated (-ir * 0.3f, -ir * 0.3f), juce::Colour (st.irisLo), ic.translated (ir, ir), true);
                 g.setGradientFill (ig);
                 g.fillEllipse (juce::Rectangle<float> (ir * 2, ir * 2).withCentre (ic));
-                g.setColour (juce::Colour (0xff1c4a04));
+                g.setColour (juce::Colour (st.irisLo).darker (0.4f));
                 for (int k = 0; k < 14; ++k)
                     g.drawLine ({ ic.getPointOnCircumference (ir * 0.55f, (float) k * 0.45f), ic.getPointOnCircumference (ir * 0.95f, (float) k * 0.45f) }, 0.5f * s);
                 g.setColour (kInk);
                 g.drawEllipse (juce::Rectangle<float> (ir * 2, ir * 2).withCentre (ic), 0.9f * s);
-                g.fillEllipse (juce::Rectangle<float> (ir * 1.35f, ir * 1.35f).withCentre (ic));
+                if (st.spiralPupils)
+                {
+                    juce::Path sp;
+                    for (int k = 0; k <= 60; ++k)
+                    {
+                        const float t = (float) k / 60.0f;
+                        const auto pt = ic.getPointOnCircumference (ir * 0.85f * t, t * 18.0f + (float) seed);
+                        if (k == 0) sp.startNewSubPath (pt); else sp.lineTo (pt);
+                    }
+                    g.strokePath (sp, stroke (1.1f));
+                }
+                else
+                    g.fillEllipse (juce::Rectangle<float> (ir * 1.35f, ir * 1.35f).withCentre (ic));
                 g.setColour (juce::Colours::white);
                 g.fillEllipse (juce::Rectangle<float> (ir * 0.42f, ir * 0.42f).withCentre (ic.translated (-ir * 0.3f, -ir * 0.35f)));
                 g.setColour (juce::Colours::white.withAlpha (0.6f));
