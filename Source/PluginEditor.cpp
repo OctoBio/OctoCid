@@ -13,6 +13,8 @@ namespace
             OctoDecor::bgImage = juce::ImageCache::getFromMemory (data, size);
         if (auto* data = BinaryData::getNamedResource ((juce::String (name) + "_blur_jpg").toRawUTF8(), size))
             OctoDecor::bgBlur = juce::ImageCache::getFromMemory (data, size);
+        if (auto* data = BinaryData::getNamedResource ((juce::String (name) + "_soft_jpg").toRawUTF8(), size))
+            OctoDecor::bgSoft = juce::ImageCache::getFromMemory (data, size);
     }
 }
 
@@ -129,7 +131,7 @@ void OctoCidAudioProcessorEditor::Content::paint (juce::Graphics& g)
     OctoDecor::paint (g, getLocalBounds().toFloat());
 
     // Barre du haut (le décor transparaît)
-    { juce::Path tb; tb.addRectangle (e.topBar.toFloat()); OctoDecor::frost (g, tb, {}); }
+    { juce::Path tb; tb.addRectangle (e.topBar.toFloat()); OctoDecor::frostStrong (g, tb, {}); }
     g.setColour (panel.withAlpha (OctoDecor::get().bolts == 6 ? 0.6f : 0.82f));
     g.fillRect (e.topBar);
     g.setColour (ink);
@@ -157,7 +159,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     using namespace ParamIDs;
 
     OctoColours::applyTheme (OctoPrefs::getInt ("theme", 2));
-    OctoLook::apply (OctoPrefs::getInt ("look", 2));
+    OctoLook::apply (OctoPrefs::getInt ("look", OctoLook::defaultLook));
     OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
     loadDecorImages();
     lnf.refreshColours();

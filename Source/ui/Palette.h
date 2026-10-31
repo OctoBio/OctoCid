@@ -121,13 +121,14 @@ namespace OctoLook
         { "Epure E - tres transparent", 5, 5.0f, 4.0f, 1.0f, 2, false, 4, 0.32f, 0.80f, 0.6f, true  },
     };
     inline constexpr int numLooks = (int) (sizeof (looks) / sizeof (looks[0]));
-    inline int current = 2;
+    inline constexpr int defaultLook = 7;
+    inline int current = defaultLook;
     inline const Look& get() { return looks[juce::jlimit (0, numLooks - 1, current)]; }
     inline void apply (int index) { current = juce::jlimit (0, numLooks - 1, index); }
 
     // Rectangle arrondi avec l'ombre et le contour du style courant
     inline void shape (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale = 1.0f,
-                       const juce::Point<float>* frostOrigin = nullptr);
+                       const juce::Point<float>* frostOrigin = nullptr, bool strongFrost = false);
     inline void shapeImpl (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale,
                            const juce::Point<float>* frostOrigin, bool (*frostFn) (juce::Graphics&, const juce::Path&, juce::Point<float>))
     {
@@ -176,7 +177,7 @@ namespace OctoDecor
     };
 
     // Fond illustré et sa version floutée (verre dépoli sous les panneaux)
-    inline juce::Image bgImage, bgBlur;
+    inline juce::Image bgImage, bgBlur, bgSoft;   // net, très flou (séquenceur), légèrement flou (panneaux)
 
     inline const Decor decors[] =
     {
@@ -310,20 +311,29 @@ namespace OctoDecor
 namespace OctoDecor
 {
     // Verre dépoli : dessine le fond flouté dans la forme donnée (coordonnées du composant)
-    inline bool frost (juce::Graphics& g, const juce::Path& shape, juce::Point<float> origin)
+    inline bool frostWith (const juce::Image& img, juce::Graphics& g, const juce::Path& shape, juce::Point<float> origin)
     {
-        if (get().bolts != 6 || ! bgBlur.isValid()) return false;
+        if (get().bolts != 6 || ! img.isValid()) return false;
         juce::Graphics::ScopedSaveState ss (g);
-        const auto xf = juce::AffineTransform::scale (1000.0f / (float) bgBlur.getWidth(), 620.0f / (float) bgBlur.getHeight())
+        const auto xf = juce::AffineTransform::scale (1000.0f / (float) img.getWidth(), 620.0f / (float) img.getHeight())
                             .translated (-origin.x, -origin.y);
-        g.setFillType (juce::FillType (bgBlur, xf));
+        g.setFillType (juce::FillType (img, xf));
         g.fillPath (shape);
         return true;
+    }
+    // Panneaux : flou léger ; séquenceur et barre du haut : flou fort
+    inline bool frost (juce::Graphics& g, const juce::Path& shape, juce::Point<float> origin)
+    {
+        return frostWith (bgSoft.isValid() ? bgSoft : bgBlur, g, shape, origin);
+    }
+    inline bool frostStrong (juce::Graphics& g, const juce::Path& shape, juce::Point<float> origin)
+    {
+        return frostWith (bgBlur, g, shape, origin);
     }
 }
 
 inline void OctoLook::shape (juce::Graphics& g, juce::Rectangle<float> r, float radius, juce::Colour fill, float outlineScale,
-                             const juce::Point<float>* frostOrigin)
+                             const juce::Point<float>* frostOrigin, bool strongFrost)
 {
-    shapeImpl (g, r, radius, fill, outlineScale, frostOrigin, &OctoDecor::frost);
+    shapeImpl (g, r, radius, fill, outlineScale, frostOrigin, strongFrost ? &OctoDecor::frostStrong : &OctoDecor::frost);
 }

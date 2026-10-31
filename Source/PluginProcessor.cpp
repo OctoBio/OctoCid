@@ -636,7 +636,7 @@ juce::AudioProcessorEditor* OctoCidAudioProcessor::createEditor()
 {
     // La palette est appliquée avant de construire les composants
     OctoColours::applyTheme (OctoPrefs::getInt ("theme", 2));
-    OctoLook::apply (OctoPrefs::getInt ("look", 2));
+    OctoLook::apply (OctoPrefs::getInt ("look", OctoLook::defaultLook));
     OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
     return new OctoCidAudioProcessorEditor (*this);
 }

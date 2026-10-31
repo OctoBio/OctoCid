@@ -404,11 +404,13 @@ namespace KnobStyles
                 drawTicks (g, c, r * 0.84f, r * 0.96f, start, end, 11, inkC, lw * 0.6f);
                 valueArc (g, c, r * 0.77f, start, end, a, bipolar, acc, lw * 0.8f);
                 const float br = r * 0.45f;
-                juce::Path head = wobblyCircle ({}, br, 0.035f, seed);
+                juce::ignoreUnused (seed);
+                juce::Path head;
+                head.addEllipse (-br, -br, br * 2, br * 2);
                 juce::Path beak;
-                beak.startNewSubPath (-br * 0.6f, -br * 0.6f);
-                beak.quadraticTo (-br * 0.25f, -r * 0.62f, br * 0.04f, -r * 0.73f);
-                beak.quadraticTo (br * 0.38f, -r * 0.62f, br * 0.64f, -br * 0.52f);
+                beak.startNewSubPath (-br * 0.62f, -br * 0.56f);
+                beak.quadraticTo (-br * 0.30f, -r * 0.62f, 0.0f, -r * 0.73f);
+                beak.quadraticTo (br * 0.30f, -r * 0.62f, br * 0.62f, -br * 0.56f);
                 beak.closeSubPath();
                 head.addPath (beak);
                 // trame (points) décalée = ombre

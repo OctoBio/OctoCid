@@ -80,7 +80,8 @@ target_compile_definitions(OctoCid PUBLIC
 
 juce_add_binary_data(OctoCidAssets SOURCES
     Assets/portail_violet.jpg
-    Assets/portail_violet_blur.jpg)
+    Assets/portail_violet_blur.jpg
+    Assets/portail_violet_soft.jpg)
 
 target_link_libraries(OctoCid
     PRIVATE
