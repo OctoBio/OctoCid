@@ -152,9 +152,15 @@ namespace octocid
         //======================================================================
         void noteOn (int note, int velocity) noexcept
         {
+            noteOnAccent (note, velocity >= accentThreshold);
+        }
+
+        // Note avec accent explicite (séquenceur)
+        void noteOnAccent (int note, bool accent) noexcept
+        {
             const bool legato = ! notes.empty() && gate;
             notes.push (note);
-            accentNote = velocity >= accentThreshold;
+            accentNote = accent;
             targetPitch = (float) note;
 
             if (legato)

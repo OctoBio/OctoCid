@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 0.3.1 LANGUAGES C CXX)
+project(OctoCid VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,6 +46,9 @@ juce_generate_juce_header(OctoCid)
 target_sources(OctoCid PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/ui/SequencerView.cpp
+    Source/ui/SequencerView.h
+    Source/ui/Palette.h
     Source/Params.h
     Source/Presets.h
     Source/dsp/DspUtils.h
@@ -57,6 +60,9 @@ target_sources(OctoCid PRIVATE
     Source/dsp/Drive.h
     Source/dsp/Lfo.h
     Source/dsp/Fx.h
+    Source/seq/Pattern.h
+    Source/seq/PatternIO.h
+    Source/seq/Sequencer.h
 )
 
 target_include_directories(OctoCid PRIVATE Source)

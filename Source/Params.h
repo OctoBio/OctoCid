@@ -51,12 +51,24 @@ namespace ParamIDs
     inline const juce::ParameterID reverbDecay { "revdecay",    1 };
     inline const juce::ParameterID reverbTone  { "revtone",     1 };
 
+    // Séquenceur
+    inline const juce::ParameterID seqOn      { "seqon",      1 };
+    inline const juce::ParameterID seqPattern { "seqpattern", 1 };
+    inline const juce::ParameterID seqRes     { "seqres",     1 };
+    inline const juce::ParameterID seqSwing   { "seqswing",   1 };
+
     // LFO
     inline const juce::ParameterID lfoRate  { "lforate",  1 };
     inline const juce::ParameterID lfoSync  { "lfosync",  1 };
     inline const juce::ParameterID lfoDepth { "lfodepth", 1 };
     inline const juce::ParameterID lfoShape { "lfoshape", 1 };
     inline const juce::ParameterID lfoDest  { "lfodest",  1 };
+}
+
+namespace SeqRes
+{
+    inline const juce::StringArray names { "1/16", "1/8", "1/32", "1/16T", "1/8T" };
+    inline constexpr double beats[] = { 0.25, 0.5, 0.125, 1.0 / 6.0, 1.0 / 3.0 };
 }
 
 namespace DelaySync

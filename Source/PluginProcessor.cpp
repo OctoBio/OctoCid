@@ -23,6 +23,11 @@ OctoCidAudioProcessor::OctoCidAudioProcessor()
     p.reverbMix = raw (reverbMix); p.reverbDecay = raw (reverbDecay); p.reverbTone = raw (reverbTone);
     p.lfoRate = raw (lfoRate);     p.lfoSync = raw (lfoSync);     p.lfoDepth = raw (lfoDepth);
     p.lfoShape = raw (lfoShape);   p.lfoDest = raw (lfoDest);
+    p.seqOn = raw (seqOn);         p.seqPattern = raw (seqPattern); p.seqRes = raw (seqRes); p.seqSwing = raw (seqSwing);
+
+    // 8 patterns de démo au départ
+    masterBank = octocid::PatternTools::demoBank();
+    sequencer.setBank (masterBank);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::createParameterLayout()
@@ -88,6 +93,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
     percent (ParamIDs::reverbDecay, "Reverb Decay", 35.0f);
     percent (ParamIDs::reverbTone, "Reverb Tone", 50.0f);
 
+    // --- Séquenceur
+    layout.add (std::make_unique<AudioParameterBool> (ParamIDs::seqOn, "Seq On", false));
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::seqPattern, "Seq Pattern",
+        StringArray { "A", "B", "C", "D", "E", "F", "G", "H" }, 0));
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::seqRes, "Seq Resolution", SeqRes::names, 0));
+    layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::seqSwing, "Seq Swing",
+        NormalisableRange<float> (0.0f, 75.0f, 0.1f), 0.0f, pct));
+
     // --- LFO
     layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::lfoRate, "LFO Rate", skewed (0.05f, 20.0f, 2.0f, 0.01f), 2.0f,
         AudioParameterFloatAttributes().withLabel ("Hz")));
@@ -127,6 +140,9 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     drive.reset();
     punch.reset();
     delay.reset();
+    sequencer.reset();
+    wasPlaying = false;
+    internalPpq = 0.0;
     reverb.reset();
     toneShaper.prepare (sampleRate);
 
@@ -227,29 +243,191 @@ void OctoCidAudioProcessor::updateLfoSync() noexcept
                     voice.syncLfo ((float) std::fmod (*ppq / LfoSync::beats[sync], 1.0));
 }
 
-void OctoCidAudioProcessor::handleMidi (const juce::MidiMessage& msg) noexcept
+void OctoCidAudioProcessor::handleEvent (const octocid::NoteEvent& ev) noexcept
 {
-    if (msg.isNoteOn())
+    using octocid::NoteEvent;
+    switch (ev.type)
     {
-        voice.noteOn (msg.getNoteNumber(), msg.getVelocity());
-        lastNote.store (msg.getNoteNumber(), std::memory_order_relaxed);
-        lastAccent.store (voice.isAccent(), std::memory_order_relaxed);
-    }
-    else if (msg.isNoteOff())
-    {
-        voice.noteOff (msg.getNoteNumber());
-        if (! voice.isGateOn())
+        case NoteEvent::On:
+            voice.noteOnAccent (ev.note, ev.accent);
+            lastNote.store (ev.note, std::memory_order_relaxed);
+            lastAccent.store (ev.accent, std::memory_order_relaxed);
+            break;
+        case NoteEvent::Off:
+            voice.noteOff (ev.note);
+            if (! voice.isGateOn())
+                lastNote.store (-1, std::memory_order_relaxed);
+            break;
+        case NoteEvent::AllOff:
+        default:
+            voice.allNotesOff();
             lastNote.store (-1, std::memory_order_relaxed);
-    }
-    else if (msg.isAllNotesOff() || msg.isAllSoundOff())
-    {
-        voice.allNotesOff();
-        lastNote.store (-1, std::memory_order_relaxed);
+            break;
     }
 }
 
-// Rend numSamples échantillons (≤ maxBlockSize) en traitant le MIDI au sample près
-void OctoCidAudioProcessor::renderChunk (float* out, int numSamples, const juce::MidiBuffer& midi, int startSample) noexcept
+//==============================================================================
+// Patterns : copie de référence côté interface, file sans verrou vers l'audio
+void OctoCidAudioProcessor::pushPattern (int index, const octocid::Pattern& pattern)
+{
+    const auto scope = patternFifo.write (1);
+    if (scope.blockSize1 > 0)
+        fifoData[(size_t) scope.startIndex1] = { index, pattern };
+    else if (scope.blockSize2 > 0)
+        fifoData[(size_t) scope.startIndex2] = { index, pattern };
+}
+
+void OctoCidAudioProcessor::drainPatternFifo() noexcept
+{
+    const int ready = patternFifo.getNumReady();
+    if (ready <= 0)
+        return;
+    const auto scope = patternFifo.read (ready);
+    for (int i = 0; i < scope.blockSize1; ++i)
+        sequencer.setPattern (fifoData[(size_t) (scope.startIndex1 + i)].index, fifoData[(size_t) (scope.startIndex1 + i)].pattern);
+    for (int i = 0; i < scope.blockSize2; ++i)
+        sequencer.setPattern (fifoData[(size_t) (scope.startIndex2 + i)].index, fifoData[(size_t) (scope.startIndex2 + i)].pattern);
+}
+
+octocid::Pattern OctoCidAudioProcessor::getPattern (int index) const
+{
+    const juce::SpinLock::ScopedLockType sl (bankLock);
+    return masterBank.patterns[juce::jlimit (0, octocid::PatternBank::kNumPatterns - 1, index)];
+}
+
+void OctoCidAudioProcessor::setPattern (int index, const octocid::Pattern& pattern)
+{
+    if (index < 0 || index >= octocid::PatternBank::kNumPatterns)
+        return;
+    {
+        const juce::SpinLock::ScopedLockType sl (bankLock);
+        masterBank.patterns[index] = pattern;
+    }
+    pushPattern (index, pattern);
+}
+
+octocid::PatternBank OctoCidAudioProcessor::getBank() const
+{
+    const juce::SpinLock::ScopedLockType sl (bankLock);
+    return masterBank;
+}
+
+void OctoCidAudioProcessor::setBank (const octocid::PatternBank& bank)
+{
+    {
+        const juce::SpinLock::ScopedLockType sl (bankLock);
+        masterBank = bank;
+    }
+    for (int i = 0; i < octocid::PatternBank::kNumPatterns; ++i)
+        pushPattern (i, bank.patterns[i]);
+}
+
+double OctoCidAudioProcessor::getStepBeats() const
+{
+    const int r = juce::jlimit (0, SeqRes::names.size() - 1, (int) p.seqRes->load());
+    return SeqRes::beats[r];
+}
+
+//==============================================================================
+// Construit la liste des notes du bloc : séquenceur (SEQ ON) ou clavier (SEQ OFF)
+void OctoCidAudioProcessor::buildEvents (const juce::MidiBuffer& midi, int numSamples) noexcept
+{
+    using octocid::NoteEvent;
+    events.clear();
+    eventCursor = 0;
+
+    drainPatternFifo();
+
+    const bool seqOn = p.seqOn->load() > 0.5f;
+    if (seqOn != wasSeqOn)
+    {
+        events.add ({ 0, NoteEvent::AllOff, 0, false });
+        sequencer.reset();
+        wasSeqOn = seqOn;
+        wasPlaying = false;
+    }
+
+    if (! seqOn)
+    {
+        // Jeu au clavier / piano roll : vélocité >= seuil = accent, chevauchement = slide
+        const int threshold = (int) p.accentThr->load();
+        for (const auto meta : midi)
+        {
+            const auto msg = meta.getMessage();
+            const int s = juce::jlimit (0, numSamples - 1, meta.samplePosition);
+            if (msg.isNoteOn())
+                events.add ({ s, NoteEvent::On, msg.getNoteNumber(), msg.getVelocity() >= threshold });
+            else if (msg.isNoteOff())
+                events.add ({ s, NoteEvent::Off, msg.getNoteNumber(), false });
+            else if (msg.isAllNotesOff() || msg.isAllSoundOff())
+                events.add ({ s, NoteEvent::AllOff, 0, false });
+        }
+        seqStep.store (-1, std::memory_order_relaxed);
+        return;
+    }
+
+    // --- SEQ ON : le MIDI entrant choisit le pattern (Do0..Sol0) ou transpose (Do3 = 0)
+    const int patParam = juce::jlimit (0, 7, (int) p.seqPattern->load());
+    if (patParam != lastPatternParam)
+    {
+        sequencer.requestPattern (patParam);
+        lastPatternParam = patParam;
+    }
+    for (const auto meta : midi)
+    {
+        const auto msg = meta.getMessage();
+        if (! msg.isNoteOn())
+            continue;
+        const int n = msg.getNoteNumber();
+        if (n >= 24 && n <= 31)
+            sequencer.requestPattern (n - 24);
+        else
+            sequencer.setTranspose (n - 60);
+    }
+
+    // --- Position du DAW
+    double bpm = 120.0, ppq = 0.0;
+    bool playing = false, hostClock = false;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+        {
+            if (auto b = pos->getBpm()) bpm = *b;
+            if (auto q = pos->getPpqPosition())
+            {
+                ppq = *q;
+                playing = pos->getIsPlaying();
+                hostClock = true;
+            }
+        }
+
+    if (! hostClock)
+    {
+        // Pas de transport (application autonome) : horloge interne à 120 BPM
+        playing = true;
+        ppq = internalPpq;
+        internalPpq += numSamples / (hostSampleRate * 60.0 / bpm);
+    }
+
+    if (playing)
+    {
+        const int r = juce::jlimit (0, SeqRes::names.size() - 1, (int) p.seqRes->load());
+        sequencer.process (ppq, juce::jlimit (20.0, 999.0, bpm), numSamples, hostSampleRate,
+                           SeqRes::beats[r], p.seqSwing->load() * 0.01f, 36, events);
+    }
+    else if (wasPlaying)
+    {
+        sequencer.stop (events, 0);
+    }
+    wasPlaying = playing;
+
+    seqStep.store (playing ? sequencer.getCurrentStep() : -1, std::memory_order_relaxed);
+    seqActivePattern.store (sequencer.getActivePattern(), std::memory_order_relaxed);
+    seqQueuedPattern.store (sequencer.getRequestedPattern(), std::memory_order_relaxed);
+    seqTranspose.store (sequencer.getTranspose(), std::memory_order_relaxed);
+}
+
+// Rend numSamples échantillons (≤ maxBlockSize) en traitant les notes au sample près
+void OctoCidAudioProcessor::renderChunk (float* out, int numSamples, int startSample) noexcept
 {
     auto& os = *oversamplers[currentQuality];
     const int factor = (int) os.getOversamplingFactor();
@@ -260,16 +438,10 @@ void OctoCidAudioProcessor::renderChunk (float* out, int numSamples, const juce:
     auto up = os.processSamplesUp (mono);
     float* osData = up.getChannelPointer (0);
 
-    auto it = midi.findNextSamplePosition (startSample);
-    const int endSample = startSample + numSamples;
-
     for (int i = 0; i < numSamples; ++i)
     {
-        while (it != midi.cend() && (*it).samplePosition <= startSample + i && (*it).samplePosition < endSample)
-        {
-            handleMidi ((*it).getMessage());
-            ++it;
-        }
+        while (eventCursor < events.size() && events[eventCursor].sample <= startSample + i)
+            handleEvent (events[eventCursor++]);
 
         for (int j = 0; j < factor; ++j)
             osData[i * factor + j] = drivePreVca ? voice.process() : drive.process (voice.process());
@@ -303,10 +475,11 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     updateParams();
     updateLfoSync();
+    buildEvents (midi, numSamples);
 
     float* left = buffer.getWritePointer (0);
     for (int pos = 0; pos < numSamples; pos += maxBlockSize)
-        renderChunk (left + pos, juce::jmin (maxBlockSize, numSamples - pos), midi, pos);
+        renderChunk (left + pos, juce::jmin (maxBlockSize, numSamples - pos), pos);
 
     // Punch (mono), puis delay et reverb (stéréo), puis volume et limiteur de sécurité
     const bool stereo = buffer.getNumChannels() > 1;
@@ -382,7 +555,7 @@ void OctoCidAudioProcessor::applyProgram (int index)
 
     // Tout le son repart des valeurs par défaut ; la qualité et le seuil d'accent
     // restent ceux de l'utilisateur.
-    static const juce::StringArray keep { "quality", "accentthr" };
+    static const juce::StringArray keep { "quality", "accentthr", "seqon", "seqpattern", "seqres", "seqswing" };
     for (auto* param : getParameters())
         if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (param))
             if (! keep.contains (rp->getParameterID()))
@@ -408,6 +581,10 @@ void OctoCidAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("program", currentProgram, nullptr);
+
+    // Les 8 patterns voyagent avec le projet
+    state.removeChild (state.getChildWithName ("Patterns"), nullptr);
+    state.appendChild (octocid::PatternIO::toTree (getBank()), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -419,6 +596,12 @@ void OctoCidAudioProcessor::setStateInformation (const void* data, int sizeInByt
         {
             auto tree = juce::ValueTree::fromXml (*xml);
             currentProgram = juce::jlimit (0, FactoryPresets::count - 1, (int) tree.getProperty ("program", 0));
+
+            auto bank = getBank();
+            if (octocid::PatternIO::fromTree (tree.getChildWithName ("Patterns"), bank))
+                setBank (bank);
+            tree.removeChild (tree.getChildWithName ("Patterns"), nullptr);
+
             apvts.replaceState (tree);
         }
 }

@@ -1,14 +1,7 @@
 #include "PluginEditor.h"
+#include "ui/Palette.h"
 
-namespace OctoColours
-{
-    // Palette provisoire (variantes à valider avant l'étape 5)
-    static const juce::Colour background { 0xff2b2826 };   // anthracite chaud
-    static const juce::Colour panel      { 0xff35312e };
-    static const juce::Colour cream      { 0xffefe6d2 };   // crème
-    static const juce::Colour slime      { 0xff9be22d };   // vert bave
-    static const juce::Colour dim        { 0xff6b655e };
-}
+// Palette partagée : ui/Palette.h
 
 //==============================================================================
 OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor& p)
@@ -94,9 +87,40 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
 
     refreshPresetBox();
 
+    // --- Onglets SON / SEQUENCEUR
+    seqView = std::make_unique<SequencerView> (processor);
+    addChildComponent (*seqView);
+    soundTab.setClickingTogglesState (false);
+    seqTab.setClickingTogglesState (false);
+    soundTab.onClick = [this] { setPage (false); };
+    seqTab.onClick = [this] { setPage (true); };
+    addAndMakeVisible (soundTab);
+    addAndMakeVisible (seqTab);
+
     setSize (1000, 760);   // provisoire : la vraie interface (étape 5) revient à ~1000 x 620
     setResizable (false, false);
     startTimerHz (30);
+    setPage (processor.editorPage == 1);
+}
+
+void OctoCidAudioProcessorEditor::setPage (bool sequencer)
+{
+    using namespace OctoColours;
+    showSeq = sequencer;
+    processor.editorPage = sequencer ? 1 : 0;
+    for (auto& c : controls)
+    {
+        if (c.get() == controls.back().get()) continue;   // Qualité : toujours visible (barre du haut)
+        c->label.setVisible (! sequencer);
+        if (c->slider) c->slider->setVisible (! sequencer);
+        if (c->box) c->box->setVisible (! sequencer);
+    }
+    seqView->setVisible (sequencer);
+    soundTab.setColour (juce::TextButton::buttonColourId, sequencer ? background : slime);
+    soundTab.setColour (juce::TextButton::textColourOffId, sequencer ? cream : background);
+    seqTab.setColour (juce::TextButton::buttonColourId, sequencer ? slime : background);
+    seqTab.setColour (juce::TextButton::textColourOffId, sequencer ? background : cream);
+    repaint();
 }
 
 OctoCidAudioProcessorEditor::~OctoCidAudioProcessorEditor()
@@ -195,6 +219,10 @@ void OctoCidAudioProcessorEditor::resized()
     q.label.setBounds (600, 18, 70, 28);
     q.box->setBounds (674, 18, 120, 28);
 
+    soundTab.setBounds (600, 50, 64, 24);
+    seqTab.setBounds (668, 50, 126, 24);
+    seqView->setBounds (0, 80, getWidth(), getHeight() - 80);
+
     ledArea = { 880, 12, 40, 40 };
 }
 
@@ -227,9 +255,10 @@ void OctoCidAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("v" JucePlugin_VersionString " - potards provisoires", juce::Rectangle<int> (22, 54, 200, 18),
                 juce::Justification::centredLeft);
 
-    // Sections
+    // Sections (page SON seulement)
     for (auto& s : sections)
     {
+        if (showSeq) break;
         auto r = s.bounds.toFloat();
         g.setColour (s.slime ? slime.withAlpha (0.10f) : panel);
         g.fillRoundedRectangle (r, 12.0f);

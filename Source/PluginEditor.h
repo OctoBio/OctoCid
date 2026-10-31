@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "ui/SequencerView.h"
 
 //==============================================================================
 // Éditeur provisoire : potards JUCE standards, rangés par sections, pour régler
@@ -42,6 +43,7 @@ private:
     Control* choice (const juce::ParameterID&, const juce::String& name);
     void layoutRow (juce::Rectangle<int> area, const std::vector<Control*>& row);
     void refreshPresetBox();
+    void setPage (bool sequencer);
 
     OctoCidAudioProcessor& processor;
     juce::LookAndFeel_V4 lookAndFeel;
@@ -52,6 +54,9 @@ private:
     juce::ComboBox presetBox;
     juce::TextButton prevButton { "<" }, nextButton { ">" };
     juce::Label presetInfo;
+    juce::TextButton soundTab { "SON" }, seqTab { "SEQUENCEUR" };
+    std::unique_ptr<SequencerView> seqView;
+    bool showSeq = false;
 
     int displayedNote = -1;
     bool displayedAccent = false;

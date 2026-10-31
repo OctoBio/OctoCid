@@ -2,13 +2,25 @@
 
 Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte escargot.
 
-> Statut : étape 3 (Drive, LFO, Slime Mods, presets d'usine). Jouable au clavier ou au piano roll, avec des potards provisoires.
+> Statut : étape 4 (séquenceur). Jouable au clavier, au piano roll ou avec le séquenceur intégré, avec une interface provisoire.
 
 ## Jeu au clavier
 
 - Notes qui se chevauchent = **slide** (glissement sans redéclencher les enveloppes)
 - Vélocité ≥ seuil (100 par défaut, réglable) = **accent**
 - Qualité : Normal (suréchantillonnage 2x) ou High (4x)
+
+## Séquenceur (onglet SÉQUENCEUR)
+
+- **SEQ ON** : le séquenceur joue en rythme avec le DAW (tempo et transport). Une note MIDI transpose
+  le pattern (Do3 = 0). Les notes Do0 à Sol0 choisissent les patterns A à H, au cycle suivant.
+- **SEQ OFF** : le synthé se joue au clavier ou au piano roll.
+- 8 patterns (A–H) de 1 à 32 pas, résolution 1/16, 1/8, 1/32, 1/16T, 1/8T, swing 0 à 75 %.
+- Par pas : note, octave (Down / 0 / Up), accent, slide, gate (Note / Silence / Liaison).
+- Outils : Randomize avec gamme et densités d'accents / slides, décalage, transposition, copier / coller / effacer.
+- **Glisser-déposer MIDI** : faire glisser la zone « MIDI » vers une piste de Bitwig crée le clip du pattern
+  (accents = vélocité haute, slides = notes qui se chevauchent).
+- Les patterns sont sauvegardés avec le projet.
 
 ## Sections
 
@@ -50,7 +62,7 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 1. Squelette ✅
 2. Moteur sonore (osc, filtre diode ladder, enveloppes, accent, slide) ✅
 3. Drive, LFO, Slime Mods ✅ (+ Punch, Delay, Reverb, presets d'usine son)
-4. Séquenceur + sync DAW + export MIDI
+4. Séquenceur + sync DAW + export MIDI ✅
 5. Interface
 6. Escargot animé
 7. Presets avec patterns, finitions, pluginval
