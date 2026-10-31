@@ -79,7 +79,7 @@ namespace octocid::PatternIO
     // se chevauchent (comme le jeu au clavier), ties = note prolongée.
     // stepBeats : durée d'un pas en noires (0,25 pour des doubles-croches).
     //==========================================================================
-    inline juce::MidiMessageSequence toSequence (const Pattern& p, double stepBeats, int baseNote, int ppqRes)
+    inline juce::MidiMessageSequence toSequence (const Pattern& p, double stepBeats, int baseNote, int ppqRes, double gate = 0.5)
     {
         juce::MidiMessageSequence seq;
         const double stepTicks = stepBeats * ppqRes;
@@ -111,7 +111,7 @@ namespace octocid::PatternIO
             const bool slideToNext = lastStep.slide && last + 1 < n && p.steps[last + 1].gate == Gate::Note;
 
             const double off = slideToNext ? (last + 1) * stepTicks + stepTicks * 0.25   // chevauche la suivante
-                                           : (last + 0.5) * stepTicks;                    // gate 50 %
+                                           : (last + gate) * stepTicks;                   // longueur de gate
 
             seq.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) (st.accent ? 127 : 80)), on);
             seq.addEvent (juce::MidiMessage::noteOff (1, note), off);
@@ -121,13 +121,13 @@ namespace octocid::PatternIO
         return seq;
     }
 
-    inline juce::File writeMidiFile (const Pattern& p, double stepBeats, int baseNote, const juce::String& name)
+    inline juce::File writeMidiFile (const Pattern& p, double stepBeats, int baseNote, const juce::String& name, double gate = 0.5)
     {
         constexpr int ppqRes = 960;
         juce::MidiFile mf;
         mf.setTicksPerQuarterNote (ppqRes);
 
-        auto seq = toSequence (p, stepBeats, baseNote, ppqRes);
+        auto seq = toSequence (p, stepBeats, baseNote, ppqRes, gate);
         // Fin de piste à la fin du pattern, pour que la boucle tombe juste
         seq.addEvent (juce::MidiMessage::endOfTrack(), p.length * stepBeats * ppqRes);
         mf.addTrack (seq);

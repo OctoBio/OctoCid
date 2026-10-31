@@ -57,7 +57,7 @@ namespace octocid
     //    est enfoncée avant que l'ancienne soit relâchée -> glissement legato.
     //  - Slide vers la même hauteur = liaison (pas de redéclenchement).
     //  - Tie : prolonge la note précédente.  Rest : silence.
-    //  - Gate des notes non liées : 50 % du pas (comme l'original).
+    //  - Gate des notes non liées : 50 % du pas par défaut (comme l'original), réglable.
     //  - Swing : les pas impairs sont retardés (jusqu'à 37,5 % d'un pas à 75 %).
     //  - Changement de pattern : appliqué au début du cycle suivant.
     //  - Saut de position (boucle, déplacement du curseur) : on coupe proprement.
@@ -65,7 +65,8 @@ namespace octocid
     class StepSequencer
     {
     public:
-        static constexpr double kGate = 0.5;
+        // Longueur de gate des notes non liées (0,5 = 50 % du pas, comme l'original)
+        void setGate (double g) noexcept { gateLen = std::clamp (g, 0.05, 0.95); }
 
         void reset() noexcept
         {
@@ -202,7 +203,7 @@ namespace octocid
                     heldNote = pitch;
                     pendingOff = -1.0;
                     if (! st.slide && next.gate != Gate::Tie)
-                        pendingOff = t + kGate * stepBeats;
+                        pendingOff = t + gateLen * stepBeats;
                     prevSlide = st.slide;
                     break;
                 }
@@ -212,7 +213,7 @@ namespace octocid
                     if (heldNote < 0) { prevSlide = false; break; }           // rien à prolonger
                     pendingOff = -1.0;
                     if (! st.slide && next.gate != Gate::Tie)
-                        pendingOff = t + kGate * stepBeats;
+                        pendingOff = t + gateLen * stepBeats;
                     prevSlide = st.slide;
                     break;
                 }
@@ -233,6 +234,7 @@ namespace octocid
         }
 
         PatternBank bank {};
+        double gateLen = 0.5;
         int active = 0, requested = 0, transpose = 0;
 
         double expectedPpq = -1.0e9;

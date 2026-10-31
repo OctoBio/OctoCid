@@ -25,12 +25,19 @@ namespace octocid
         void resetPhase() noexcept { phase = 0.0f; }
 
         // inc = fréquence / sampleRate ; squareMix : 0 = saw, 1 = square
-        float process (float inc, float squareMix) noexcept
+        // curve : 0 = rampe droite ; > 0 = rampe légèrement incurvée (charge d'un
+        // condensateur, comme sur un oscillateur analogique). Le saut reste de 2 :
+        // la correction polyBLEP reste valable.
+        float process (float inc, float squareMix, float curve = 0.0f) noexcept
         {
             const float t = phase;
             const float ramp = 2.0f * t - 1.0f;
 
-            float out = -(ramp - polyBlep (t, inc));   // dent de scie, polarité de l'original
+            float sawRamp = ramp;
+            if (curve > 1.0e-3f)
+                sawRamp = 2.0f * (1.0f - std::exp (-curve * t)) / (1.0f - std::exp (-curve)) - 1.0f;
+
+            float out = -(sawRamp - polyBlep (t, inc));   // dent de scie, polarité de l'original
 
             if (squareMix > 0.0001f)
             {

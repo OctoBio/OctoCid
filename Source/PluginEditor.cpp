@@ -49,7 +49,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
         { { knob (slideTime, "Slide Time"), knob (slidePunch, "Slide Punch"), choice (sweepSpeed, "Sweep Speed"),
             knob (accentDecay, "Accent Decay"), knob (softAttack, "Soft Attack"), knob (accentThreshold, "Seuil accent") },
           { knob (filterTrack, "Filter Track"), knob (filterFm, "Filter FM"), knob (filterDrive, "Filter Drive"),
-            choice (subOsc, "Sub Osc"), knob (subLevel, "Sub Level"), choice (muffler, "Muffler") } } });
+            choice (subOsc, "Sub Osc"), knob (subLevel, "Sub Level"), choice (muffler, "Muffler"), knob (analog, "Analog") } } });
 
     // --- Barre du haut : presets et qualité
     for (int i = 0; i < processor.getNumPrograms(); ++i)

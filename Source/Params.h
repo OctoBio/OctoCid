@@ -33,6 +33,7 @@ namespace ParamIDs
     inline const juce::ParameterID subOsc      { "subosc",      1 };
     inline const juce::ParameterID subLevel    { "sublevel",    1 };
     inline const juce::ParameterID muffler     { "muffler",     1 };
+    inline const juce::ParameterID analog      { "analog",      1 };
 
     // Drive
     inline const juce::ParameterID driveType { "drivetype", 1 };
@@ -56,6 +57,7 @@ namespace ParamIDs
     inline const juce::ParameterID seqPattern { "seqpattern", 1 };
     inline const juce::ParameterID seqRes     { "seqres",     1 };
     inline const juce::ParameterID seqSwing   { "seqswing",   1 };
+    inline const juce::ParameterID seqGate    { "seqgate",    1 };
 
     // LFO
     inline const juce::ParameterID lfoRate  { "lforate",  1 };

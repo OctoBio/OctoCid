@@ -36,6 +36,7 @@ namespace octocid
         int   subMode       = 0;       // 0 Off, 1 = -1 octave, 2 = -2 octaves
         float subLevel      = 0.5f;
         int   muffler       = 0;       // 0 Off, 1, 2
+        float analog        = 0.0f;    // dérive lente + rampe imparfaite (0 = son numérique propre)
 
         // LFO
         float lfoRateHz = 2.0f;
@@ -105,6 +106,8 @@ namespace octocid
             }
 
             cachedSlideMs = cachedAccDecMs = cachedSoftMs = -1.0f;
+            driftPeriod = std::max (1, (int) (sampleRate / 3.0));       // nouvelle cible ~3 fois par seconde
+            driftCoef = onePoleCoef (0.35f, sampleRate);
             updateCoefs();
         }
 
@@ -131,6 +134,8 @@ namespace octocid
             vcaAttack = 1.0f;
             subPhase = 0.0f;
             lastOut = 0.0f;
+            driftP = driftC = driftPT = driftCT = 0.0f;
+            driftCount = 0;
             sm = target;
         }
 
@@ -213,6 +218,24 @@ namespace octocid
             smoothTo (sm.filterDrive, target.filterDrive);
             smoothTo (sm.subLevel,    target.subMode > 0 ? target.subLevel : 0.0f);
             smoothTo (sm.lfoDepth,    target.lfoDepth);
+            smoothTo (sm.analog,      target.analog);
+
+            // --- Analog : deux dérives lentes et indépendantes (hauteur, cutoff)
+            float driftCents = 0.0f, driftOct = 0.0f, curve = 0.0f;
+            if (sm.analog > 1.0e-4f)
+            {
+                if (--driftCount <= 0)
+                {
+                    driftCount = driftPeriod;
+                    driftPT = rand01() * 2.0f - 1.0f;
+                    driftCT = rand01() * 2.0f - 1.0f;
+                }
+                driftP += (driftPT - driftP) * driftCoef;
+                driftC += (driftCT - driftC) * driftCoef;
+                driftCents = sm.analog * 7.0f * driftP;
+                driftOct = sm.analog * 0.12f * driftC;
+                curve = sm.analog * 1.6f;
+            }
 
             // --- LFO
             const float lfoRaw = lfo.process();                       // tourne toujours (phase continue)
@@ -223,11 +246,13 @@ namespace octocid
             // --- Hauteur + slide RC (en fréquence, comme le circuit de l'original)
             freq += (midiToHz (targetPitch) - freq) * slideCoef;
             float f = freq * tuneFactor (sm.tune);
+            if (sm.analog > 1.0e-4f)
+                f *= 1.0f + driftCents * 0.000577623f;               // cents -> rapport (approx. linéaire)
             if (lfoDest == 2 && lfoOn)
                 f *= std::exp2 (lfoOut * (2.0f / 12.0f));            // vibrato ±2 demi-tons
             const float inc = std::min (f * invFs, 0.45f);
 
-            float raw = preHighpass.process (osc.process (inc, sm.squareMix));
+            float raw = preHighpass.process (osc.process (inc, sm.squareMix, curve));
 
             // --- MEG
             meg *= accentNote ? accentMegCoef : std::exp (-invFs / (0.2f * std::exp2 (sm.decay * 3.3219281f)));
@@ -244,7 +269,7 @@ namespace octocid
             const float envScaler = (1.0f - c) * (3.773996f * e + 0.736966f) + c * (4.194549f * e + 0.864345f);
             const float envOffset = 0.048293f * c + 0.294391f;
             const float baseHz = 313.815f * std::exp2 (c * 2.931652f);
-            float octaves = envScaler * (envSmoothed - envOffset) + kAccentOctaves * sm.accent * sweep;
+            float octaves = envScaler * (envSmoothed - envOffset) + kAccentOctaves * sm.accent * sweep + driftOct;
             if (sm.filterTrack > 1.0e-4f)
                 octaves += sm.filterTrack * std::log2 (f * (1.0f / 130.8128f));   // référence : Do3
             if (sm.filterFm > 1.0e-4f)
@@ -364,6 +389,10 @@ namespace octocid
         float cachedTune = 0.0f, cachedTuneFactor = 1.0f;
         float meg = 0.0f, envSmoothed = 0.0f, sweep = 0.0f, ampEnv = 0.0f, vcaAttack = 1.0f;
         float subPhase = 0.0f, lastOut = 0.0f;
+        float driftP = 0.0f, driftC = 0.0f, driftPT = 0.0f, driftCT = 0.0f, driftCoef = 0.0f;
+        int driftCount = 0, driftPeriod = 1;
+        uint32_t rngState = 0x2545F491u;
+        float rand01() noexcept { rngState = rngState * 1664525u + 1013904223u; return (float) (rngState >> 8) * (1.0f / 16777216.0f); }
 
         float smoothCoef = 0.0f, slideCoef = 0.0f, accentAttackCoef = 0.0f, softAttackCoef = 0.0f, vcaAttackCoef = 1.0f;
         float sweepCharge[3] {}, sweepRelease[3] {};

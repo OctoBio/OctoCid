@@ -2,6 +2,9 @@
 
 #include <cstdint>
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <utility>
 
 namespace octocid
 {
@@ -82,25 +85,196 @@ namespace octocid
             int below (int n) noexcept { return (int) (unit() * (float) n) % std::max (1, n); }
         };
 
-        // Randomize avec verrouillage de gamme. Densités 0..1.
-        inline void randomize (Pattern& p, int root, int scaleIndex, float accentDensity, float slideDensity,
-                               float restDensity, uint32_t seed)
+        //======================================================================
+        // GÉNÉRATEUR façon bassline acid (inspiré du principe de TB-3PO) :
+        // densité bipolaire -7..+7.
+        //   -7 : quasi que la tonique, beaucoup de notes (ligne martelée)
+        //    0 : toute la gamme, ligne aérée
+        //   +7 : toute la gamme, ligne pleine
+        // Règles « 303 » : la tonique domine, premier pas joué et accentué,
+        // accents plutôt sur le temps et les contretemps, slides seulement vers
+        // une note différente, octave haute surtout sur les accents.
+        // Densités d'accents / slides 0..1 (0,5 = dosage classique).
+        //======================================================================
+        inline void generate (Pattern& p, int root, int scaleIndex, int density,
+                              float accentAmount, float slideAmount, uint32_t seed)
         {
             Rng rng (seed);
             const Scale& sc = kScales[std::clamp (scaleIndex, 0, kNumScales - 1)];
-            for (int i = 0; i < p.length; ++i)
+            const int d = std::clamp (density, -7, 7);
+            const float gateProb = 0.55f + 0.38f * (float) std::abs (d) / 7.0f;
+            const float poolFrac = std::clamp ((float) (d + 7) / 7.0f, 0.0f, 1.0f);
+            const int pool = 1 + (int) std::lround (poolFrac * (float) (sc.count - 1));
+
+            // Degrés disponibles : la tonique, puis la quinte et la tierce en priorité
+            int order[12] {};
+            int n = 0;
+            auto addDegree = [&] (int semis)
+            {
+                for (int i = 0; i < sc.count && n < pool; ++i)
+                    if (sc.degrees[i] == semis)
+                    {
+                        for (int j = 0; j < n; ++j) if (order[j] == semis) return;
+                        order[n++] = semis;
+                    }
+            };
+            addDegree (0); addDegree (7); addDegree (3); addDegree (4); addDegree (10); addDegree (5);
+            for (int i = 0; i < sc.count && n < pool; ++i) addDegree (sc.degrees[i]);
+
+            const int len = std::max (1, p.length);
+            for (int i = 0; i < len; ++i)
             {
                 Step s;
-                // La tonique revient souvent : c'est ce qui rend une ligne acid « accrocheuse »
-                const int degree = rng.unit() < 0.35f ? 0 : sc.degrees[rng.below (sc.count)];
-                s.note = (uint8_t) ((root + degree) % 12);
-                const float o = rng.unit();
-                s.octave = (int8_t) (o < 0.15f ? -1 : (o > 0.80f ? 1 : 0));
-                s.accent = rng.unit() < accentDensity;
-                s.slide  = rng.unit() < slideDensity;
+                const bool downbeat = i % 4 == 0, offbeat = i % 4 == 2;
+                const float gp = i == 0 ? 1.0f : gateProb + (downbeat ? 0.1f : 0.0f);
                 const float g = rng.unit();
-                s.gate = i == 0 ? Gate::Note : (g < restDensity ? Gate::Rest : (g < restDensity + 0.06f ? Gate::Tie : Gate::Note));
+                s.gate = g < gp ? Gate::Note : (g < gp + 0.07f && i > 0 ? Gate::Tie : Gate::Rest);
+
+                const int deg = (rng.unit() < 0.42f || n == 1) ? 0 : order[1 + rng.below (std::max (1, n - 1))];
+                s.note = (uint8_t) ((root + deg) % 12);
+
+                float acc = 0.18f + (i == 0 ? 0.5f : 0.0f) + (offbeat ? 0.17f : 0.0f) + (downbeat ? 0.1f : 0.0f);
+                acc *= 2.0f * std::clamp (accentAmount, 0.0f, 1.0f);
+                s.accent = s.gate == Gate::Note && rng.unit() < acc;
+
+                const float o = rng.unit();
+                s.octave = (int8_t) (o < (s.accent ? 0.28f : 0.12f) ? 1 : (o > 0.92f && deg == 0 ? -1 : 0));
+
+                s.slide = rng.unit() < 0.22f * 2.0f * std::clamp (slideAmount, 0.0f, 1.0f);
                 p.steps[i] = s;
+            }
+
+            // Règles de propreté : un slide doit mener à une note différente
+            for (int i = 0; i < len; ++i)
+            {
+                auto& s = p.steps[i];
+                const auto& nx = p.steps[(i + 1) % len];
+                if (s.slide && (nx.gate != Gate::Note || (nx.note == s.note && nx.octave == s.octave)))
+                    s.slide = false;
+                if (s.gate == Gate::Rest)
+                    s.slide = s.accent = false;
+            }
+        }
+
+        // Garde l'ancien nom (densités directes) pour compatibilité
+        inline void randomize (Pattern& p, int root, int scaleIndex, float accentDensity, float slideDensity,
+                               float /*restDensity*/, uint32_t seed)
+        {
+            generate (p, root, scaleIndex, 2, accentDensity, slideDensity, seed);
+        }
+
+        //======================================================================
+        // Lignes indépendantes : décaler seulement les notes, les accents, les
+        // slides ou les gates. Décaler les accents d'un pas change souvent tout.
+        //======================================================================
+        enum class Lane { Notes, Accents, Slides, Gates };
+
+        inline void shiftLane (Pattern& p, Lane lane, int dir) noexcept
+        {
+            const int n = std::max (1, p.length);
+            Step tmp[Pattern::kMaxSteps];
+            for (int i = 0; i < n; ++i)
+                tmp[((i + dir) % n + n) % n] = p.steps[i];
+            for (int i = 0; i < n; ++i)
+            {
+                switch (lane)
+                {
+                    case Lane::Notes:   p.steps[i].note = tmp[i].note; p.steps[i].octave = tmp[i].octave; break;
+                    case Lane::Accents: p.steps[i].accent = tmp[i].accent; break;
+                    case Lane::Slides:  p.steps[i].slide = tmp[i].slide; break;
+                    case Lane::Gates:   p.steps[i].gate = tmp[i].gate; break;
+                    default: break;
+                }
+            }
+        }
+
+        // Ramène chaque note sur la gamme choisie (degré le plus proche)
+        inline void quantize (Pattern& p, int root, int scaleIndex) noexcept
+        {
+            const Scale& sc = kScales[std::clamp (scaleIndex, 0, kNumScales - 1)];
+            for (auto& s : p.steps)
+            {
+                const int rel = ((int) s.note - root + 12) % 12;
+                int best = 0, bestDist = 99;
+                for (int i = 0; i < sc.count; ++i)
+                {
+                    const int dd = std::abs (sc.degrees[i] - rel);
+                    const int dist = std::min (dd, 12 - dd);
+                    if (dist < bestDist) { bestDist = dist; best = sc.degrees[i]; }
+                }
+                s.note = (uint8_t) ((root + best) % 12);
+            }
+        }
+
+        //======================================================================
+        // VARIER : petites transformations d'un pattern existant (la bonne
+        // méthode d'après les développeurs d'émulations 303 : faire évoluer
+        // une ligne plutôt qu'en tirer une nouvelle au hasard).
+        // amount 0..1 : nombre et ampleur des transformations.
+        //======================================================================
+        inline void mutate (Pattern& p, int root, int scaleIndex, float amount, uint32_t seed)
+        {
+            Rng rng (seed);
+            const Scale& sc = kScales[std::clamp (scaleIndex, 0, kNumScales - 1)];
+            const int len = std::max (1, p.length);
+            const int ops = 1 + (int) std::lround (std::clamp (amount, 0.0f, 1.0f) * 3.0f);
+
+            for (int k = 0; k < ops; ++k)
+            {
+                switch (rng.below (7))
+                {
+                    case 0: shiftLane (p, Lane::Accents, rng.unit() < 0.5f ? -1 : 1); break;
+                    case 1: shiftLane (p, Lane::Slides,  rng.unit() < 0.5f ? -1 : 1); break;
+                    case 2:   // inverse l'ordre des notes, garde le rythme
+                    {
+                        for (int i = 0; i < len / 2; ++i)
+                        {
+                            std::swap (p.steps[i].note, p.steps[len - 1 - i].note);
+                            std::swap (p.steps[i].octave, p.steps[len - 1 - i].octave);
+                        }
+                        break;
+                    }
+                    case 3:   // échange des moitiés (notes seulement)
+                    {
+                        const int h = len / 2;
+                        for (int i = 0; i < h; ++i)
+                        {
+                            std::swap (p.steps[i].note, p.steps[i + h].note);
+                            std::swap (p.steps[i].octave, p.steps[i + h].octave);
+                        }
+                        break;
+                    }
+                    case 4:   // quelques notes changent, dans la gamme
+                    {
+                        const int changes = 1 + (int) (amount * (float) len / 6.0f);
+                        for (int c = 0; c < changes; ++c)
+                        {
+                            auto& s = p.steps[rng.below (len)];
+                            s.note = (uint8_t) ((root + sc.degrees[rng.below (sc.count)]) % 12);
+                        }
+                        break;
+                    }
+                    case 5:   // une octave bascule
+                    {
+                        auto& s = p.steps[rng.below (len)];
+                        s.octave = (int8_t) (s.octave == 0 ? (rng.unit() < 0.7f ? 1 : -1) : 0);
+                        break;
+                    }
+                    default:  // un accent ou un slide apparaît / disparaît
+                    {
+                        auto& s = p.steps[rng.below (len)];
+                        if (rng.unit() < 0.5f) s.accent = ! s.accent; else s.slide = ! s.slide;
+                        break;
+                    }
+                }
+            }
+
+            for (int i = 0; i < len; ++i)
+            {
+                auto& s = p.steps[i];
+                const auto& nx = p.steps[(i + 1) % len];
+                if (s.slide && nx.gate != Gate::Note && nx.gate != Gate::Tie)
+                    s.slide = false;
             }
         }
 

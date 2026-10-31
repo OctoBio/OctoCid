@@ -17,7 +17,15 @@ Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid cla
 - **SEQ OFF** : le synthé se joue au clavier ou au piano roll.
 - 8 patterns (A–H) de 1 à 32 pas, résolution 1/16, 1/8, 1/32, 1/16T, 1/8T, swing 0 à 75 %.
 - Par pas : note, octave (Down / 0 / Up), accent, slide, gate (Note / Silence / Liaison).
-- Outils : Randomize avec gamme et densités d'accents / slides, décalage, transposition, copier / coller / effacer.
+- **Générer** : nouvelle ligne acid dans la gamme, densité de -7 (tonique martelée) à +7 (toute la gamme, ligne pleine),
+  dosage des accents et des slides ; règles « 303 » (tonique dominante, slides vers une note différente…).
+- **Varier** : fait évoluer la ligne actuelle (décale accents ou slides, inverse, échange les moitiés, change quelques notes).
+- **Gamme** : ramène toutes les notes dans la gamme choisie.
+- Décalage d'une seule ligne (notes, accents, slides ou gates), décalage global, transposition, copier / coller / effacer,
+  annuler / rétablir.
+- **REC** : enregistrement pas à pas au clavier MIDI (vélocité haute = accent, notes liées = slide).
+- **Raccourcis clavier** (comme le Transistor Bass) : flèches, Maj + haut/bas (octave), A, S, G, N, R, T, Ctrl+Z / Ctrl+Y.
+- **Gate** : longueur des notes (10 à 95 %, 50 % comme l'original).
 - **Glisser-déposer MIDI** : faire glisser la zone « MIDI » vers une piste de Bitwig crée le clip du pattern
   (accents = vélocité haute, slides = notes qui se chevauchent).
 - Les patterns sont sauvegardés avec le projet.
@@ -33,7 +41,8 @@ Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid cla
   Attaque ; Delay ping-pong synchronisé (1/16 à 1/2, pointé, triolet) avec Feedback ; Reverb plate
   (Mix, Decay, Tone). Delay et reverb coupent le grave : la basse reste sèche et serrée
 - **Slime Mods** : Slide Time, Slide Punch, Sweep Speed, Accent Decay, Soft Attack, Filter Tracking,
-  Filter FM, Filter Drive, Sub Osc, Muffler — à leur réglage par défaut, le son est celui de l'original
+  Filter FM, Filter Drive, Sub Osc, Muffler, Analog (dérive lente + rampe d'oscillateur imparfaite) —
+  à leur réglage par défaut, le son est celui de l'original
 
 ## Presets d'usine
 

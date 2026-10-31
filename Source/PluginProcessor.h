@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <bitset>
 #include "Params.h"
 #include "dsp/AcidVoice.h"
 #include "dsp/Drive.h"
@@ -73,6 +74,12 @@ public:
     octocid::PatternBank getBank() const;
     void setBank (const octocid::PatternBank& bank);
     double getStepBeats() const;
+    double getGate() const;
+
+    // Enregistrement pas à pas : les notes jouées au clavier MIDI sont envoyées à l'interface
+    struct RecNote { int note = 0; int velocity = 0; bool legato = false; };
+    std::atomic<bool> stepRecord { false };
+    bool popRecordedNote (RecNote& out);
 
     int editorPage = 0;   // page affichée par l'éditeur (0 = son, 1 = séquenceur), non sauvegardée
 
@@ -130,6 +137,12 @@ private:
     juce::SpinLock bankLock;
     void pushPattern (int index, const octocid::Pattern& pattern);
 
+    static constexpr int kRecFifoSize = 256;
+    juce::AbstractFifo recFifo { kRecFifoSize };
+    std::array<RecNote, kRecFifoSize> recData {};
+    std::bitset<128> heldKeys;          // touches du clavier MIDI enfoncées (pour détecter le legato)
+    void pushRecorded (int note, int velocity, bool legato) noexcept;
+
     struct RawParams
     {
         std::atomic<float> *tune, *cutoff, *resonance, *envMod, *decay, *accent, *waveform, *volume,
@@ -138,7 +151,7 @@ private:
                            *filterTrack, *filterFm, *filterDrive, *subOsc, *subLevel, *muffler,
                            *driveType, *driveAmt, *driveTone, *driveMix, *drivePos,
                            *punchAmt, *punchAttack, *delayMix, *delayTime, *delayFb, *reverbMix, *reverbDecay, *reverbTone,
-                           *seqOn, *seqPattern, *seqRes, *seqSwing,
+                           *seqOn, *seqPattern, *seqRes, *seqSwing, *seqGate, *analog,
                            *lfoRate, *lfoSync, *lfoDepth, *lfoShape, *lfoDest;
     } p {};
 
