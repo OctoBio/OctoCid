@@ -278,8 +278,10 @@ namespace octoui
     //==========================================================================
     // Logo OctoCid : texte épais et une goutte de bave sous le « C »
     //==========================================================================
+    inline bool showLogo = true;   // (captures de test)
     inline void drawLogo (juce::Graphics& g, juce::Rectangle<float> r)
     {
+        if (! showLogo) return;
         using namespace OctoColours;
         juce::GlyphArrangement ga;
         const juce::Font f (juce::FontOptions (r.getHeight() * 0.78f, juce::Font::bold));
