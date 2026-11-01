@@ -147,7 +147,7 @@ namespace OctoLook
         { "Glitch fort - potard pixel",  9, 0.0f, 0.0f, 2.0f, 2, false, 7, 0.32f, 0.82f, 0.9f, true, 12.0f, 4.0f, false, 0.12f, 6, true },
     };
     inline constexpr int numLooks = (int) (sizeof (looks) / sizeof (looks[0]));
-    inline constexpr int defaultLook = 13;
+    inline constexpr int defaultLook = 14;
     inline int current = defaultLook;
     inline const Look& get() { return looks[juce::jlimit (0, numLooks - 1, current)]; }
     inline void apply (int index) { current = juce::jlimit (0, numLooks - 1, index); }
