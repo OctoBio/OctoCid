@@ -2,20 +2,20 @@
 
 Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte escargot.
 
-> Statut : étape 6 (escargot animé). Jouable au clavier, au piano roll ou avec le séquenceur intégré.
+> Version 1.0. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
 
 ## Interface
 
 Fenêtre 1000 × 620 (zoom 100 / 125 / 150 % dans le menu « ... »), tout en vectoriel :
 
-1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de l'escargot, qualité Normal / High, menu (zoom, palette).
+1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de l'escargot, qualité Normal / High, menu (zoom, patterns d'usine).
 2. **Drive** à gauche, **mascotte** au centre, **LFO** à droite.
 3. **Panneau 303** (Tune, Cutoff, Resonance, Env Mod, Decay, Accent, Waveform, Volume) et le bouton du tiroir
    **SLIME MODS**, qui se déplie au-dessus (réglages avancés + Punch / Delay / Reverb) sans masquer le séquenceur.
 4. **Séquenceur** sur toute la largeur.
 
 Potards : valeur affichée au survol et pendant le réglage, double-clic = valeur par défaut,
-Ctrl + glisser = réglage fin, molette. Trois palettes au choix (Slime, Néon, Papier).
+Ctrl + glisser = réglage fin, molette. Fond « portail » illustré, panneaux en verre dépoli, style glitch.
 
 ## L'escargot
 
@@ -67,11 +67,29 @@ avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton 
 
 ## Presets d'usine
 
-15 presets, tous au même niveau perçu (-23 LUFS sur une ligne de démo, sauf Init) et vérifiés
-comme distincts par analyse (brillance, grave, dynamique, saturation, mouvement du filtre) :
+24 presets de son, tous au même niveau perçu (-23 LUFS sur une ligne de démo, sauf Init) et vérifiés
+comme distincts par analyse (brillance, grave, dynamique, saturation, mouvement du filtre).
+Ils ne touchent jamais aux patterns du séquenceur :
 
 Init 303 · Acid House 88 · Squelch Machine · Rat Techno · Screamer Lead · Rave Wobble · Rubber Sub ·
-Deep Dub Acid · Liquid Glide · Pluck Stab · FM Monster · Trance Lead · Broken Speaker · S&H Madness · Siren Track
+Deep Dub Acid · Liquid Glide · Pluck Stab · FM Monster · Trance Lead · Broken Speaker · S&H Madness · Siren Track ·
+Hardfloor Spiral · Minimal Click · Goa Roller · Ghetto Acid · Bubble Bath · Laser Zap · Analog Drift ·
+Industrial Grind · Space Echo Arp
+
+## Banques de patterns d'usine
+
+Menu « ... » > **Patterns d'usine** : 7 banques de 8 patterns (Classiques, Acid House, Acid Techno, Trance / Goa,
+Glides, Hard Acid, Rap / Trap). Charger une banque remplace A à H ; « Revenir à mes patterns d'avant » annule.
+
+## Validation
+
+Tests internes à chaque version : automatisation aléatoire, toutes tailles de buffer (32 à 2048) et fréquences
+(44,1 à 192 kHz), sauvegarde / rappel d'état, presets, séquenceur synchronisé, export MIDI, coût de l'interface.
+Pour une validation pluginval (Tracktion) sous Windows :
+
+```
+pluginval.exe --strictness-level 5 --validate "C:\Program Files\Common Files\VST3\OctoCid.vst3"
+```
 
 ## Build local (Windows)
 
@@ -95,4 +113,4 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 4. Séquenceur + sync DAW + export MIDI ✅
 5. Interface ✅ (fond portail, style glitch, potards néon)
 6. Escargot animé ✅
-7. Presets avec patterns, finitions, pluginval
+7. Presets, banques de patterns, finitions ✅ (pluginval : voir ci-dessous)

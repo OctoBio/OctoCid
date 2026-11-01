@@ -53,3 +53,9 @@ Modèle de circuit écrit à partir des valeurs de composants publiées d'une p�
 ## JUCE
 
 OctoCid est construit avec JUCE 8 (https://juce.com), sous les termes de la licence JUCE / AGPLv3.
+
+
+## Police du logo
+
+Le logo est une image rendue avec la police **Bungee** (David Jonathan Ross), licence SIL Open Font License 1.1.
+Aucun fichier de police n'est distribué avec le plugin.
