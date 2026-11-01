@@ -6,9 +6,9 @@ Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid cla
 
 ## Interface
 
-Fenêtre 1000 × 620 (zoom 100 / 125 / 150 % dans le menu « ... »), tout en vectoriel :
+Fenêtre redimensionnable (tirer le coin en bas à droite, ou menu « ... » > Taille, de 60 à 200 %), taille gardée avec le projet :
 
-1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de l'escargot, qualité Normal / High, menu (zoom, patterns d'usine).
+1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de l'escargot, qualité Normal / High, menu (presets, apparence, taille, patterns d'usine).
 2. **Drive** à gauche, **mascotte** au centre, **LFO** à droite.
 3. **Panneau 303** (Tune, Cutoff, Resonance, Env Mod, Decay, Accent, Waveform, Volume) et le bouton du tiroir
    **SLIME MODS**, qui se déplie au-dessus (réglages avancés + Punch / Delay / Reverb) sans masquer le séquenceur.
@@ -64,6 +64,17 @@ avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton 
 - **Slime Mods** : Slide Time, Slide Punch, Sweep Speed, Accent Decay, Soft Attack, Filter Tracking,
   Filter FM, Filter Drive, Sub Osc, Muffler, Analog (dérive lente + rampe d'oscillateur imparfaite) —
   à leur réglage par défaut, le son est celui de l'original
+
+## Mes presets
+
+Menu « ... » > **Enregistrer le preset…** : le son actuel est sauvegardé dans `Documents\OctoBio\OctoCid\Presets`
+(fichiers `.ocpreset`, faciles à partager). Ils apparaissent sous « MES PRESETS » dans la liste et dans le DAW ;
+« Supprimer » et « Ouvrir le dossier des presets » sont dans le même menu.
+
+## Apparence
+
+Menu « ... » > **Apparence** : 16 fonds (portails violet, vert, feu, bleu, orage, acide…), 16 styles d'interface
+(glitch, épurés, BD), 16 potards, 9 escargots. Choix gardé pour toutes les fenêtres ; « Revenir à l'apparence d'origine ».
 
 ## Presets d'usine
 

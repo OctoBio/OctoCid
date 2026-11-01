@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 1.0.1 LANGUAGES C CXX)
+project(OctoCid VERSION 1.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -82,7 +82,28 @@ juce_add_binary_data(OctoCidAssets SOURCES
     Assets/portail_violet.jpg
     Assets/portail_violet_blur.jpg
     Assets/portail_violet_soft.jpg
-    Assets/logo_glitch.png)
+    Assets/logo_glitch.png
+    Assets/acide.jpg
+    Assets/acide_soft.jpg
+    Assets/acide_blur.jpg
+    Assets/orage.jpg
+    Assets/orage_soft.jpg
+    Assets/orage_blur.jpg
+    Assets/acide_orage.jpg
+    Assets/acide_orage_soft.jpg
+    Assets/acide_orage_blur.jpg
+    Assets/portail_vert.jpg
+    Assets/portail_vert_soft.jpg
+    Assets/portail_vert_blur.jpg
+    Assets/portail_feu.jpg
+    Assets/portail_feu_soft.jpg
+    Assets/portail_feu_blur.jpg
+    Assets/portail_bleu.jpg
+    Assets/portail_bleu_soft.jpg
+    Assets/portail_bleu_blur.jpg
+    Assets/portail_vert_eclairs_violets.jpg
+    Assets/portail_vert_eclairs_violets_soft.jpg
+    Assets/portail_vert_eclairs_violets_blur.jpg)
 
 target_link_libraries(OctoCid
     PRIVATE

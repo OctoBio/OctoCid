@@ -150,6 +150,7 @@ namespace OctoLook
     inline constexpr int defaultLook = 14;
     inline int current = defaultLook;
     inline const Look& get() { return looks[juce::jlimit (0, numLooks - 1, current)]; }
+    inline int knobOverride = -1;   // -1 : le potard du style d'interface
     inline void apply (int index) { current = juce::jlimit (0, numLooks - 1, index); }
 
     // Rectangle arrondi avec l'ombre et le contour du style courant
@@ -293,6 +294,10 @@ namespace OctoDecor
         { "Orage acide",              2, 6, false, false, false, 0.70f, "orage" },
         { "Acide + orage",            2, 6, false, false, false, 0.64f, "acide_orage" },
         { "Portail violet",           2, 6, false, false, false, 0.66f, "portail_violet" },
+        { "Portail vert",             2, 6, false, false, false, 0.66f, "portail_vert" },
+        { "Portail feu",              2, 6, false, false, false, 0.66f, "portail_feu" },
+        { "Portail bleu",             2, 6, false, false, false, 0.66f, "portail_bleu" },
+        { "Portail vert, eclairs violets", 2, 6, false, false, false, 0.66f, "portail_vert_eclairs_violets" },
     };
     inline constexpr int numDecors = (int) (sizeof (decors) / sizeof (decors[0]));
     inline constexpr int defaultDecor = 11;

@@ -33,8 +33,10 @@ private:
     void timerCallback() override;
     void refreshPresetBox();
     void showMenu();
-    void setZoom (int index);
     void setTheme (int index);
+    void applyAppearance();
+    void rebuildPresetBox();
+    void savePresetDialog();
     void toggleDrawer();
 
     //==========================================================================
@@ -98,7 +100,6 @@ private:
     int displayedNote = -1;
     bool displayedAccent = false;
     int displayedProgram = -1;
-    int zoomIndex = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OctoCidAudioProcessorEditor)
 };

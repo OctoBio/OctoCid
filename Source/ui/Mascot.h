@@ -38,10 +38,11 @@ public:
 
     // Zone de dessin de l'escargot (dans le composant, qui déborde un peu pour les sauts)
     void setSnailArea (juce::Rectangle<float> r) { snailArea = r; staticCache = {}; repaint(); }
+    void styleChanged() { staticCache = {}; repaint(); }
 
     void paint (juce::Graphics& g) override
     {
-        const auto& st = OctoSnail::styles[OctoSnail::mascotStyle];
+        const auto& st = OctoSnail::styles[juce::jlimit (0, OctoSnail::numStyles - 1, OctoSnail::mascotStyle)];
         auto area = snailArea.isEmpty() ? getLocalBounds().toFloat() : snailArea;
 
         OctoSnail::draw (g, area, st, anim, OctoSnail::kUnder);

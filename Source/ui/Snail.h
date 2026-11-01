@@ -60,7 +60,8 @@ namespace OctoSnail
           0xffffe07a, 0xffe06a3a, 0xff8a2a8a, 0xff2a1050, 0xffffffff, 0xff2a1050,
           0xffff8a8a, 0xffa00a10, 0xfffffbe6, 0xffe9b49a, 0xffc0202a, 2, false, false, true, false, 1.45f },
     };
-    inline constexpr int mascotStyle = 8;
+    inline constexpr int defaultMascotStyle = 8;
+    inline int mascotStyle = defaultMascotStyle;
     inline constexpr int numStyles = (int) (sizeof (styles) / sizeof (styles[0]));
 
     // État d'animation (calculé par l'interface, 0 = au repos)

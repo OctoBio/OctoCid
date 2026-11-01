@@ -9,7 +9,7 @@ namespace
         if (! octoui::logoImage.isValid())
             octoui::logoImage = juce::ImageCache::getFromMemory (BinaryData::logo_glitch_png, BinaryData::logo_glitch_pngSize);
         const char* name = OctoDecor::get().image;
-        if (name == nullptr) return;
+        if (name == nullptr) { OctoDecor::bgImage = {}; OctoDecor::bgBlur = {}; OctoDecor::bgSoft = {}; return; }
         int size = 0;
         if (auto* data = BinaryData::getNamedResource ((juce::String (name) + "_jpg").toRawUTF8(), size))
             OctoDecor::bgImage = juce::ImageCache::getFromMemory (data, size);
@@ -160,9 +160,12 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
 {
     using namespace ParamIDs;
 
-    OctoColours::applyTheme (2);                       // design figé (Papier)
-    OctoLook::apply (OctoLook::defaultLook);            // glitch fort + potards néon
-    OctoDecor::apply (OctoDecor::defaultDecor);         // portail violet
+    // Apparence (préférences globales ; par défaut : portail violet, glitch fort, potards néon, escargot punk)
+    OctoLook::apply (OctoPrefs::getInt ("look", OctoLook::defaultLook));
+    OctoLook::knobOverride = OctoPrefs::getInt ("knob", -1);
+    OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
+    OctoSnail::mascotStyle = OctoPrefs::getInt ("snail", OctoSnail::defaultMascotStyle);
+    OctoColours::applyTheme (OctoDecor::get().theme);
     loadDecorImages();
     lnf.refreshColours();
     setLookAndFeel (&lnf);
@@ -173,11 +176,10 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     auto add = [this] (juce::Component& c) { content.addAndMakeVisible (c); };
 
     // --- Barre du haut
-    for (int i = 0; i < processor.getNumPrograms(); ++i)
-        presetBox.addItem (juce::String (i + 1).paddedLeft ('0', 2) + "  " + processor.getProgramName (i), i + 1);
+    rebuildPresetBox();
     presetBox.onChange = [this]
     {
-        const int idx = presetBox.getSelectedItemIndex();
+        const int idx = presetBox.getSelectedId() - 1;
         if (idx >= 0 && idx != processor.getCurrentProgram())
         {
             processor.applyProgram (idx);
@@ -197,7 +199,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     menuButton.onClick = [this] { showMenu(); };
     prevButton.setTooltip ("Preset precedent");
     nextButton.setTooltip ("Preset suivant");
-    menuButton.setTooltip ("Zoom et palette");
+    menuButton.setTooltip ("Presets, apparence, taille, patterns d'usine");
     seqToggle.setTooltip ("ON : le sequenceur joue avec le DAW. OFF : jeu au clavier / piano roll");
     snailToggle.setTooltip ("Animation de l'escargot On / Off");
     seqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (st, seqOn.getParamID(), seqToggle);
@@ -265,14 +267,20 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
 
     refreshPresetBox();
     content.sendLookAndFeelChange();      // toutes les zones de texte relisent la palette
-    zoomIndex = juce::jlimit (0, 2, OctoPrefs::getInt ("zoom", 0));
-    setResizable (false, false);
-    setZoom (zoomIndex);
+    // Fenêtre redimensionnable (coin en bas à droite), proportions gardées
+    const int w = processor.editorWidth > 0 ? processor.editorWidth : OctoPrefs::getInt ("width", kWidth);  // lu avant : resized() l'écrase
+    setResizable (true, true);
+    setResizeLimits (kWidth * 6 / 10, kHeight * 6 / 10, kWidth * 2, kHeight * 2);
+    if (auto* c = getConstrainer())
+        c->setFixedAspectRatio ((double) kWidth / (double) kHeight);
+    const int wc = juce::jlimit (kWidth * 6 / 10, kWidth * 2, w);
+    setSize (wc, juce::roundToInt ((double) wc * kHeight / kWidth));
     startTimerHz (30);
 }
 
 OctoCidAudioProcessorEditor::~OctoCidAudioProcessorEditor()
 {
+    OctoPrefs::setInt ("width", getWidth());   // taille par défaut des prochaines fenêtres
     tooltips.reset();
     setLookAndFeel (nullptr);
 }
@@ -280,6 +288,7 @@ OctoCidAudioProcessorEditor::~OctoCidAudioProcessorEditor()
 //==============================================================================
 void OctoCidAudioProcessorEditor::resized()
 {
+    processor.editorWidth = getWidth();
     content.setBounds (0, 0, kWidth, kHeight);
     const float z = (float) getWidth() / (float) kWidth;
     content.setTransform (juce::AffineTransform::scale (z));
@@ -376,52 +385,138 @@ void OctoCidAudioProcessorEditor::timerCallback()
         refreshPresetBox();
 }
 
+void OctoCidAudioProcessorEditor::rebuildPresetBox()
+{
+    presetBox.clear (juce::dontSendNotification);
+    const int n = processor.getNumPrograms();
+    for (int i = 0; i < juce::jmin (n, FactoryPresets::count); ++i)
+        presetBox.addItem (juce::String (i + 1).paddedLeft ('0', 2) + "  " + processor.getProgramName (i), i + 1);
+    if (n > FactoryPresets::count)
+    {
+        presetBox.addSectionHeading ("MES PRESETS");
+        for (int i = FactoryPresets::count; i < n; ++i)
+            presetBox.addItem (processor.getProgramName (i), i + 1);
+    }
+    displayedProgram = -2;
+}
+
 void OctoCidAudioProcessorEditor::refreshPresetBox()
 {
     const int idx = processor.getCurrentProgram();
     displayedProgram = idx;
-    presetBox.setSelectedItemIndex (idx, juce::dontSendNotification);
+    presetBox.setSelectedId (idx + 1, juce::dontSendNotification);
     presetBox.setTooltip (processor.getProgramDescription (idx));
 }
 
 //==============================================================================
 void OctoCidAudioProcessorEditor::showMenu()
 {
-    juce::PopupMenu zoom, menu;
-    const int zooms[] = { 100, 125, 150 };
-    for (int i = 0; i < 3; ++i)
-        zoom.addItem (100 + i, juce::String (zooms[i]) + " %", true, i == zoomIndex);
-    menu.addSectionHeader ("OctoCid v" JucePlugin_VersionString);
-    menu.addSubMenu ("Zoom", zoom);
-    juce::PopupMenu banks;
+    juce::PopupMenu zoom, menu, look, knobs, decor, snail, banks;
+    const int zooms[] = { 75, 100, 125, 150, 175 };
+    for (int i = 0; i < 5; ++i)
+        zoom.addItem (100 + i, juce::String (zooms[i]) + " %", true, std::abs (getWidth() - kWidth * zooms[i] / 100) < 4);
+    zoom.addItem (110, juce::String::fromUTF8 ("(ou tirer le coin en bas à droite)"), false);
+
+    for (int i = 0; i < OctoLook::numLooks; ++i)
+        look.addItem (300 + i, juce::String::fromUTF8 (OctoLook::looks[i].name), true, i == OctoLook::current);
+    knobs.addItem (600, juce::String::fromUTF8 ("Celui du style d'interface"), true, OctoLook::knobOverride < 0);
+    knobs.addSeparator();
+    for (int i = 0; i < KnobStyles::chickenCount; ++i)
+        knobs.addItem (601 + i, juce::String::fromUTF8 (KnobStyles::chickenNames[i]), true, i == OctoLook::knobOverride);
+    for (int i = 0; i < OctoDecor::numDecors; ++i)
+        decor.addItem (700 + i, juce::String::fromUTF8 (OctoDecor::decors[i].name), true, i == OctoDecor::current);
+    for (int i = 0; i < OctoSnail::numStyles; ++i)
+        snail.addItem (800 + i, juce::String::fromUTF8 (OctoSnail::styles[i].name), true, i == OctoSnail::mascotStyle);
+    juce::PopupMenu appearance;
+    appearance.addSubMenu ("Fond", decor);
+    appearance.addSubMenu ("Interface", look);
+    appearance.addSubMenu ("Potards", knobs);
+    appearance.addSubMenu ("Escargot", snail);
+    appearance.addSeparator();
+    appearance.addItem (899, juce::String::fromUTF8 ("Revenir à l'apparence d'origine"));
+
     for (int i = 0; i < octocid::FactoryBanks::count; ++i)
         banks.addItem (400 + i, octocid::FactoryBanks::names[i]);
     banks.addSeparator();
     banks.addItem (499, juce::String::fromUTF8 ("Revenir à mes patterns d'avant"), sequencer.canRestoreBank());
+
+    const int cur = processor.getCurrentProgram();
+    menu.addSectionHeader ("OctoCid v" JucePlugin_VersionString);
+    menu.addItem (501, juce::String::fromUTF8 ("Enregistrer le preset…"));
+    menu.addItem (502, juce::String::fromUTF8 ("Supprimer « ") + processor.getProgramName (cur) + juce::String::fromUTF8 (" »"),
+                  processor.isUserPreset (cur));
+    menu.addItem (503, "Ouvrir le dossier des presets");
+    menu.addSeparator();
+    menu.addSubMenu ("Apparence", appearance);
+    menu.addSubMenu ("Taille", zoom);
     menu.addSubMenu (juce::String::fromUTF8 ("Patterns d'usine (remplace A à H)"), banks);
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton), [this] (int r)
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton), [this, zooms] (int r)
     {
-        if (r >= 100 && r < 103) setZoom (r - 100);
-        else if (r >= 200 && r < 200 + OctoColours::numThemes) setTheme (r - 200);
+        if (r >= 100 && r < 105) setSize (kWidth * zooms[r - 100] / 100, kHeight * zooms[r - 100] / 100);
+        else if (r >= 300 && r < 300 + OctoLook::numLooks) { OctoPrefs::setInt ("look", r - 300); applyAppearance(); }
+        else if (r >= 600 && r <= 600 + KnobStyles::chickenCount) { OctoPrefs::setInt ("knob", r - 601); applyAppearance(); }
+        else if (r >= 700 && r < 700 + OctoDecor::numDecors) { OctoPrefs::setInt ("decor", r - 700); applyAppearance(); }
+        else if (r >= 800 && r < 800 + OctoSnail::numStyles) { OctoPrefs::setInt ("snail", r - 800); applyAppearance(); }
+        else if (r == 899)
+        {
+            OctoPrefs::setInt ("look", OctoLook::defaultLook); OctoPrefs::setInt ("knob", -1);
+            OctoPrefs::setInt ("decor", OctoDecor::defaultDecor); OctoPrefs::setInt ("snail", OctoSnail::defaultMascotStyle);
+            applyAppearance();
+        }
         else if (r >= 400 && r < 400 + octocid::FactoryBanks::count) sequencer.loadFactoryBank (r - 400);
         else if (r == 499) sequencer.restorePreviousBank();
+        else if (r == 501) savePresetDialog();
+        else if (r == 502)
+        {
+            processor.deleteUserPreset (processor.getCurrentProgram());
+            rebuildPresetBox(); refreshPresetBox();
+        }
+        else if (r == 503)
+        {
+            OctoCidAudioProcessor::userPresetFolder().createDirectory();
+            OctoCidAudioProcessor::userPresetFolder().startAsProcess();
+        }
     });
 }
 
-void OctoCidAudioProcessorEditor::setZoom (int index)
+void OctoCidAudioProcessorEditor::savePresetDialog()
 {
-    zoomIndex = juce::jlimit (0, 2, index);
-    OctoPrefs::setInt ("zoom", zoomIndex);
-    const float z = zoomIndex == 0 ? 1.0f : (zoomIndex == 1 ? 1.25f : 1.5f);
-    setSize ((int) std::round (kWidth * z), (int) std::round (kHeight * z));
-    resized();
+    auto* w = new juce::AlertWindow ("Enregistrer le preset", "Nom du preset :", juce::MessageBoxIconType::NoIcon, this);
+    const int cur = processor.getCurrentProgram();
+    w->addTextEditor ("name", processor.isUserPreset (cur) ? processor.getProgramName (cur) : juce::String());
+    w->addButton ("Enregistrer", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    w->addButton ("Annuler", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    juce::Component::SafePointer<OctoCidAudioProcessorEditor> safe (this);
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w] (int r)
+    {
+        if (r != 1 || safe == nullptr) return;
+        const auto name = w->getTextEditorContents ("name");
+        if (safe->processor.saveUserPreset (name))
+        {
+            safe->rebuildPresetBox();
+            safe->refreshPresetBox();
+            safe->processor.updateHostDisplay (juce::AudioProcessor::ChangeDetails().withProgramChanged (true));
+        }
+    }), true);
+}
+
+void OctoCidAudioProcessorEditor::applyAppearance()
+{
+    OctoLook::apply (OctoPrefs::getInt ("look", OctoLook::defaultLook));
+    OctoLook::knobOverride = OctoPrefs::getInt ("knob", -1);
+    OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
+    OctoSnail::mascotStyle = OctoPrefs::getInt ("snail", OctoSnail::defaultMascotStyle);
+    loadDecorImages();
+    setTheme (OctoDecor::get().theme);
+    mascot.styleChanged();
+    drawer.repaint();
+    sequencer.repaint();
 }
 
 void OctoCidAudioProcessorEditor::setTheme (int index)
 {
     OctoColours::applyTheme (index);
-    OctoPrefs::setInt ("theme", OctoColours::currentTheme);
     lnf.refreshColours();
     sendLookAndFeelChange();
     content.sendLookAndFeelChange();

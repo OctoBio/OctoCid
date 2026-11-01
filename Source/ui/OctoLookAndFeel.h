@@ -61,7 +61,7 @@ public:
                            float startAngle, float endAngle, juce::Slider& s) override
     {
         const bool bipolar = (bool) s.getProperties().getWithDefault ("bipolar", false);
-        KnobStyles::chicken (OctoLook::get().knob, g, juce::Rectangle<int> (x, y, w, h).toFloat().reduced (2.0f),
+        KnobStyles::chicken (OctoLook::knobOverride >= 0 ? OctoLook::knobOverride : OctoLook::get().knob, g, juce::Rectangle<int> (x, y, w, h).toFloat().reduced (2.0f),
                              pos, startAngle, endAngle, bipolar, s.isEnabled(), (int) (reinterpret_cast<juce::pointer_sized_int> (&s) & 0xffff));
     }
 

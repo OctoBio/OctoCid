@@ -9,6 +9,7 @@ OctoCidAudioProcessor::OctoCidAudioProcessor()
       apvts (*this, nullptr, "OctoCidState", createParameterLayout())
 {
     using namespace ParamIDs;
+    rescanUserPresets();
     p.tune = raw (tune);           p.cutoff = raw (cutoff);       p.resonance = raw (resonance);
     p.envMod = raw (envMod);       p.decay = raw (decay);         p.accent = raw (accent);
     p.waveform = raw (waveform);   p.volume = raw (volume);
@@ -583,19 +584,28 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 //==============================================================================
 int OctoCidAudioProcessor::getNumPrograms()
 {
-    return FactoryPresets::count;
+    const juce::ScopedLock sl (userPresetLock);
+    return FactoryPresets::count + (int) userPresets.size();
 }
 
 const juce::String OctoCidAudioProcessor::getProgramName (int index)
 {
-    if (index < 0 || index >= FactoryPresets::count)
+    if (index >= FactoryPresets::count)
+    {
+        const juce::ScopedLock sl (userPresetLock);
+        const int u = index - FactoryPresets::count;
+        return u < (int) userPresets.size() ? userPresets[(size_t) u].name : juce::String();
+    }
+    if (index < 0)
         return {};
     return juce::String::fromUTF8 (FactoryPresets::list[index].name);
 }
 
 juce::String OctoCidAudioProcessor::getProgramDescription (int index) const
 {
-    if (index < 0 || index >= FactoryPresets::count)
+    if (index >= FactoryPresets::count)
+        return juce::String::fromUTF8 ("Mon preset");
+    if (index < 0)
         return {};
     return juce::String::fromUTF8 (FactoryPresets::list[index].tag);
 }
@@ -604,25 +614,115 @@ void OctoCidAudioProcessor::setCurrentProgram (int index)
 {
     // Le DAW renvoie parfois le programme courant après un rechargement d'état :
     // on ne l'applique pas une deuxième fois pour ne pas écraser les retouches.
-    if (index < 0 || index >= FactoryPresets::count || index == currentProgram)
+    if (index < 0 || index >= getNumPrograms() || index == currentProgram)
         return;
 
     applyProgram (index);
 }
 
+juce::File OctoCidAudioProcessor::userPresetFolder()
+{
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+               .getChildFile ("OctoBio").getChildFile ("OctoCid").getChildFile ("Presets");
+}
+
+void OctoCidAudioProcessor::rescanUserPresets()
+{
+    std::vector<UserPreset> found;
+    auto files = userPresetFolder().findChildFiles (juce::File::findFiles, false, "*.ocpreset");
+    files.sort();
+    for (auto& f : files)
+        found.push_back ({ f.getFileNameWithoutExtension(), f });
+    const juce::ScopedLock sl (userPresetLock);
+    userPresets = std::move (found);
+}
+
+namespace
+{
+    // Réglages qui restent ceux de l'utilisateur quand on change de preset (séquenceur, qualité…)
+    const juce::StringArray& keptParams()
+    {
+        static const juce::StringArray keep { "quality", "accentthr", "seqon", "seqpattern", "seqres", "seqswing", "seqgate", "snailanim" };
+        return keep;
+    }
+}
+
+bool OctoCidAudioProcessor::saveUserPreset (const juce::String& rawName)
+{
+    const auto name = juce::File::createLegalFileName (rawName.trim());
+    if (name.isEmpty()) return false;
+    juce::XmlElement xml ("OctoCidPreset");
+    xml.setAttribute ("name", rawName.trim());
+    xml.setAttribute ("version", JucePlugin_VersionString);
+    for (auto* param : getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (param))
+            if (! keptParams().contains (rp->getParameterID()))
+            {
+                auto* e = xml.createNewChildElement ("Param");
+                e->setAttribute ("id", rp->getParameterID());
+                e->setAttribute ("value", (double) rp->convertFrom0to1 (rp->getValue()));
+            }
+    const auto folder = userPresetFolder();
+    if (! folder.createDirectory()) return false;
+    const auto file = folder.getChildFile (name + ".ocpreset");
+    if (! xml.writeTo (file)) return false;
+    rescanUserPresets();
+    const juce::ScopedLock sl (userPresetLock);
+    for (size_t i = 0; i < userPresets.size(); ++i)
+        if (userPresets[i].file == file)
+            currentProgram = FactoryPresets::count + (int) i;
+    return true;
+}
+
+bool OctoCidAudioProcessor::deleteUserPreset (int programIndex)
+{
+    juce::File file;
+    {
+        const juce::ScopedLock sl (userPresetLock);
+        const int u = programIndex - FactoryPresets::count;
+        if (u < 0 || u >= (int) userPresets.size()) return false;
+        file = userPresets[(size_t) u].file;
+    }
+    const bool ok = file.deleteFile();
+    rescanUserPresets();
+    if (currentProgram >= getNumPrograms()) currentProgram = 0;
+    return ok;
+}
+
 void OctoCidAudioProcessor::applyProgram (int index)
 {
-    if (index < 0 || index >= FactoryPresets::count)
+    if (index < 0 || index >= getNumPrograms())
         return;
+
+    if (index >= FactoryPresets::count)
+    {
+        juce::File file;
+        {
+            const juce::ScopedLock sl (userPresetLock);
+            file = userPresets[(size_t) (index - FactoryPresets::count)].file;
+        }
+        auto xml = juce::XmlDocument::parse (file);
+        if (xml == nullptr || ! xml->hasTagName ("OctoCidPreset"))
+            return;
+        currentProgram = index;
+        for (auto* param : getParameters())
+            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (param))
+                if (! keptParams().contains (rp->getParameterID()))
+                    rp->setValueNotifyingHost (rp->getDefaultValue());
+        for (auto* e : xml->getChildWithTagNameIterator ("Param"))
+            if (auto* rp = apvts.getParameter (e->getStringAttribute ("id")))
+                if (! keptParams().contains (rp->getParameterID()))
+                    rp->setValueNotifyingHost (rp->convertTo0to1 ((float) e->getDoubleAttribute ("value")));
+        return;
+    }
 
     currentProgram = index;
 
     // Tout le son repart des valeurs par défaut ; la qualité et le seuil d'accent
     // restent ceux de l'utilisateur.
-    static const juce::StringArray keep { "quality", "accentthr", "seqon", "seqpattern", "seqres", "seqswing", "seqgate", "snailanim" };
     for (auto* param : getParameters())
         if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (param))
-            if (! keep.contains (rp->getParameterID()))
+            if (! keptParams().contains (rp->getParameterID()))
                 rp->setValueNotifyingHost (rp->getDefaultValue());
 
     for (const auto& v : FactoryPresets::list[index].values)
@@ -638,9 +738,6 @@ void OctoCidAudioProcessor::applyProgram (int index)
 juce::AudioProcessorEditor* OctoCidAudioProcessor::createEditor()
 {
     // La palette est appliquée avant de construire les composants
-    OctoColours::applyTheme (2);                       // design figé (Papier)
-    OctoLook::apply (OctoLook::defaultLook);            // glitch fort + potards néon
-    OctoDecor::apply (OctoDecor::defaultDecor);         // portail violet
     return new OctoCidAudioProcessorEditor (*this);
 }
 
@@ -649,6 +746,14 @@ void OctoCidAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("program", currentProgram, nullptr);
+    state.setProperty ("editorWidth", editorWidth, nullptr);
+    if (isUserPreset (currentProgram))
+    {
+        const juce::ScopedLock sl (userPresetLock);
+        const int u = currentProgram - FactoryPresets::count;
+        if (u < (int) userPresets.size())
+            state.setProperty ("userPreset", userPresets[(size_t) u].name, nullptr);
+    }
 
     // Les 8 patterns voyagent avec le projet
     state.removeChild (state.getChildWithName ("Patterns"), nullptr);
@@ -664,6 +769,15 @@ void OctoCidAudioProcessor::setStateInformation (const void* data, int sizeInByt
         {
             auto tree = juce::ValueTree::fromXml (*xml);
             currentProgram = juce::jlimit (0, FactoryPresets::count - 1, (int) tree.getProperty ("program", 0));
+            editorWidth = (int) tree.getProperty ("editorWidth", editorWidth);
+            const auto userName = tree.getProperty ("userPreset").toString();
+            if (userName.isNotEmpty())
+            {
+                const juce::ScopedLock sl (userPresetLock);
+                for (size_t i = 0; i < userPresets.size(); ++i)
+                    if (userPresets[i].name == userName)
+                        currentProgram = FactoryPresets::count + (int) i;
+            }
 
             auto bank = getBank();
             if (octocid::PatternIO::fromTree (tree.getChildWithName ("Patterns"), bank))

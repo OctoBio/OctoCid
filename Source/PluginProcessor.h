@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "Presets.h"
 #include <bitset>
 #include "Params.h"
 #include "dsp/AcidVoice.h"
@@ -50,6 +51,14 @@ public:
     // Applique un preset même s'il est déjà sélectionné (choix explicite dans l'interface)
     void applyProgram (int index);
 
+    // Presets utilisateur : fichiers .ocpreset dans Documents/OctoBio/OctoCid/Presets
+    // (après les presets d'usine dans la liste des programmes)
+    static juce::File userPresetFolder();
+    void rescanUserPresets();
+    bool saveUserPreset (const juce::String& name);       // remplace s'il existe déjà
+    bool deleteUserPreset (int programIndex);
+    bool isUserPreset (int programIndex) const { return programIndex >= FactoryPresets::count; }
+
     //==========================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
@@ -85,7 +94,8 @@ public:
     std::atomic<bool> stepRecord { false };
     bool popRecordedNote (RecNote& out);
 
-    int editorPage = 0;   // page affichée par l'éditeur (0 = son, 1 = séquenceur), non sauvegardée
+    int editorPage = 0;
+    int editorWidth = 0;  // largeur de la fenêtre (0 = préférence globale), sauvegardée avec le projet   // page affichée par l'éditeur (0 = son, 1 = séquenceur), non sauvegardée
 
 private:
     void handleEvent (const octocid::NoteEvent& ev) noexcept;
@@ -123,6 +133,10 @@ private:
     double hostSampleRate = 44100.0;
     int maxBlockSize = 512;
     int currentProgram = 0;
+    struct UserPreset { juce::String name; juce::File file; };
+    std::vector<UserPreset> userPresets;
+    juce::CriticalSection userPresetLock;
+    juce::String pendingUserPresetName;   // rappel d'état : nom du preset utilisateur courant
     bool drivePreVca = false;
 
     // Séquenceur
