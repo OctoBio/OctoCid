@@ -266,10 +266,12 @@ namespace octocid
             sweep += (sweepTarget - sweep) * (sweepTarget > sweep ? sweepCharge[sp] : sweepRelease[sp]);
 
             // --- Cutoff (loi mesurée Open303) + mods
-            const float c = sm.cutoff, e = sm.envMod;
+            const float e = sm.envMod;
+            const float cutOct = cutoffOctaves (sm.cutoff);                    // plage élargie aux extrémités
+            const float c = std::clamp (cutOct * (1.0f / 2.931652f), 0.0f, 1.0f); // équivalent du potard d'origine
             const float envScaler = (1.0f - c) * (3.773996f * e + 0.736966f) + c * (4.194549f * e + 0.864345f);
             const float envOffset = 0.048293f * c + 0.294391f;
-            const float baseHz = 313.815f * std::exp2 (c * 2.931652f);
+            const float baseHz = 313.815f * std::exp2 (cutOct);
             float octaves = envScaler * (envSmoothed - envOffset) + kAccentOctaves * sm.accent * sweep + driftOct;
             if (sm.filterTrack > 1.0e-4f)
                 octaves += sm.filterTrack * std::log2 (f * (1.0f / 130.8128f));   // référence : Do3
@@ -277,7 +279,7 @@ namespace octocid
                 octaves += sm.filterFm * 3.0f * lastOut;
             if (lfoDest == 0 && lfoOn)
                 octaves += 2.5f * lfoOut;
-            const float cutoffHz = std::clamp (baseHz * std::exp2 (octaves), 200.0f, 0.45f * (float) fs);
+            const float cutoffHz = std::clamp (baseHz * std::exp2 (octaves), std::min (200.0f, baseHz * 0.64f), 0.45f * (float) fs);
 
             // --- Résonance : courbe 303 + LFO + petit coup de l'accent
             float res = sm.resonance;
@@ -331,6 +333,19 @@ namespace octocid
         float getAccentSweep() const noexcept { return sweep; }
         float getPitch() const noexcept { return 69.0f + 12.0f * std::log2 (freq / 440.0f); }
         bool isGateOn() const noexcept { return gate; }
+
+        // Potard Cutoff -> octaves au-dessus de 313,8 Hz.
+        // Entre 25 et 75 % : loi mesurée de l'original (314 Hz .. 2,4 kHz sur toute la course).
+        // En dessous : jusqu'à 2,6 octaves de plus vers le grave (filtre vraiment fermé, ~52 Hz) ;
+        // au-dessus : jusqu'à 1 octave de plus vers l'aigu (~4,8 kHz).
+        static float cutoffOctaves (float knob) noexcept
+        {
+            const float c = std::clamp (knob, 0.0f, 1.0f);
+            float oct = 2.931652f * c;
+            if (c < 0.25f) oct -= 2.6f * std::pow ((0.25f - c) * 4.0f, 1.3f);
+            if (c > 0.75f) oct += 1.0f * std::pow ((c - 0.75f) * 4.0f, 1.3f);
+            return oct;
+        }
         float getLfoValue() const noexcept { return lastLfo; }   // pour l'animation de l'escargot
         bool isAccent() const noexcept { return accentNote; }
 

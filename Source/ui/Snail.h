@@ -561,8 +561,13 @@ namespace OctoSnail
                     g.strokePath (v, stroke (0.75f));
                 }
                 // iris vert acide + pupille dilatée
-                const auto ic = c.translated (juce::jlimit (-0.45f, 0.45f, lookX + an.gazeX) * rr, juce::jlimit (-0.45f, 0.45f, lookY + an.gazeY) * rr);
-                const float ir = rr * 0.50f;
+                // Pupille : de minuscule (Cutoff fermé) à tout l'œil (Cutoff ouvert) ; l'iris s'élargit avec elle
+                const float pk = juce::jlimit (0.0f, 1.0f, an.pupil);
+                const float pr = rr * (0.12f + 0.98f * pk * pk);                 // rayon de la pupille
+                const float centreK = juce::jlimit (0.0f, 1.0f, (pk - 0.55f) / 0.45f); // le regard se recentre en se dilatant
+                const auto ic = c.translated (juce::jlimit (-0.45f, 0.45f, lookX + an.gazeX) * rr * (1.0f - centreK),
+                                              juce::jlimit (-0.45f, 0.45f, lookY + an.gazeY) * rr * (1.0f - centreK));
+                const float ir = juce::jmax (rr * 0.50f, pr + rr * 0.10f);
                 juce::ColourGradient ig (juce::Colour (st.irisHi), ic.translated (-ir * 0.3f, -ir * 0.3f), juce::Colour (st.irisLo), ic.translated (ir, ir), true);
                 g.setGradientFill (ig);
                 g.fillEllipse (juce::Rectangle<float> (ir * 2, ir * 2).withCentre (ic));
@@ -583,10 +588,7 @@ namespace OctoSnail
                     g.strokePath (sp, stroke (1.1f));
                 }
                 else
-                {
-                    const float pd = ir * juce::jlimit (0.5f, 1.75f, 0.75f + 1.0f * an.pupil);
-                    g.fillEllipse (juce::Rectangle<float> (pd, pd).withCentre (ic));
-                }
+                    g.fillEllipse (juce::Rectangle<float> (pr * 2.0f, pr * 2.0f).withCentre (ic));
                 g.setColour (juce::Colours::white);
                 g.fillEllipse (juce::Rectangle<float> (ir * 0.42f, ir * 0.42f).withCentre (ic.translated (-ir * 0.3f, -ir * 0.35f)));
                 g.setColour (juce::Colours::white.withAlpha (0.6f));
