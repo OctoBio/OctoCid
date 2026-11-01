@@ -19,6 +19,11 @@ public:
     ~SequencerView() override;
 
     void paint (juce::Graphics&) override;
+
+    // Banques d'usine : chargement (avec sauvegarde de la banque actuelle) et retour en arrière
+    void loadFactoryBank (int index);
+    void restorePreviousBank();
+    bool canRestoreBank() const noexcept { return hasBankBackup; }
     void resized() override;
 
     void mouseDown (const juce::MouseEvent&) override;
@@ -62,6 +67,8 @@ private:
     int cursor = 0;
 
     std::vector<octocid::Pattern> undoStack, redoStack;
+    octocid::PatternBank bankBackup;
+    bool hasBankBackup = false;
     static constexpr size_t kMaxUndo = 64;
 
     Row dragRow = Row::None;

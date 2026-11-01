@@ -233,6 +233,26 @@ void SequencerView::reloadFromProcessor()
     repaint();
 }
 
+void SequencerView::loadFactoryBank (int index)
+{
+    bankBackup = processor.getBank();
+    hasBankBackup = true;
+    processor.setBank (octocid::FactoryBanks::make (index));
+    undoStack.clear(); redoStack.clear();
+    shownIndex = -1;
+    reloadFromProcessor();
+}
+
+void SequencerView::restorePreviousBank()
+{
+    if (! hasBankBackup) return;
+    processor.setBank (bankBackup);
+    hasBankBackup = false;
+    undoStack.clear(); redoStack.clear();
+    shownIndex = -1;
+    reloadFromProcessor();
+}
+
 void SequencerView::commit()
 {
     processor.setPattern (shownIndex, pattern);

@@ -363,4 +363,46 @@ namespace octocid
             return b;
         }
     }
+
+    //==========================================================================
+    // Banques de patterns d'usine (8 patterns chacune), chargées à la demande
+    // depuis le menu : elles ne sont jamais imposées par les presets de son.
+    //==========================================================================
+    namespace FactoryBanks
+    {
+        inline const char* names[] = { "Classiques", "Acid House", "Acid Techno", "Trance / Goa",
+                                       "Glides", "Hard Acid", "Rap / Trap" };
+        inline constexpr int count = (int) (sizeof (names) / sizeof (names[0]));
+
+        struct Recipe { int scale, densityLo, densityHi; float accents, slides; int length; int octaveShift; uint32_t seed; };
+
+        inline PatternBank make (int index)
+        {
+            if (index <= 0)
+                return PatternTools::demoBank();
+
+            static const Recipe recipes[] =
+            {
+                { 0, -2, 2, 0.50f, 0.50f, 16,  0, 1100 },   // Acid House : mineure, dosage classique
+                { 1, -5, 0, 0.85f, 0.30f, 16,  0, 2200 },   // Acid Techno : phrygien, tonique martelée
+                { 3,  2, 5, 0.40f, 0.40f, 16,  0, 3300 },   // Trance / Goa : mineure harmonique, ligne pleine
+                { 4,  0, 3, 0.30f, 0.90f, 16,  0, 4400 },   // Glides : pentatonique, slides partout
+                { 1,  4, 7, 0.90f, 0.50f, 16,  0, 5500 },   // Hard Acid : phrygien, dense et accentué
+                { 0, -6, -3, 0.30f, 0.60f, 16, -1, 6600 },  // Rap / Trap : rare, grave, glissé
+            };
+            const auto& r = recipes[std::clamp (index - 1, 0, (int) (sizeof (recipes) / sizeof (recipes[0])) - 1)];
+            PatternBank b;
+            for (int k = 0; k < PatternBank::kNumPatterns; ++k)
+            {
+                auto& p = b.patterns[k];
+                p.length = (k == 7 && r.length == 16) ? 32 : r.length;   // H : version longue sur 2 mesures
+                const int dens = r.densityLo + (int) std::lround ((float) (r.densityHi - r.densityLo) * (float) k / 7.0f);
+                PatternTools::generate (p, 0, r.scale, dens, r.accents, r.slides, r.seed + (uint32_t) k * 97u);
+                if (r.octaveShift != 0)
+                    for (auto& st : p.steps)
+                        st.octave = (int8_t) std::clamp (st.octave + r.octaveShift, -1, 1);
+            }
+            return b;
+        }
+    }
 }

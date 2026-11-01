@@ -160,9 +160,9 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
 {
     using namespace ParamIDs;
 
-    OctoColours::applyTheme (OctoPrefs::getInt ("theme", 2));
-    OctoLook::apply (OctoPrefs::getInt ("look", OctoLook::defaultLook));
-    OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
+    OctoColours::applyTheme (2);                       // design figé (Papier)
+    OctoLook::apply (OctoLook::defaultLook);            // glitch fort + potards néon
+    OctoDecor::apply (OctoDecor::defaultDecor);         // portail violet
     loadDecorImages();
     lnf.refreshColours();
     setLookAndFeel (&lnf);
@@ -387,30 +387,25 @@ void OctoCidAudioProcessorEditor::refreshPresetBox()
 //==============================================================================
 void OctoCidAudioProcessorEditor::showMenu()
 {
-    juce::PopupMenu zoom, theme, menu;
+    juce::PopupMenu zoom, menu;
     const int zooms[] = { 100, 125, 150 };
     for (int i = 0; i < 3; ++i)
         zoom.addItem (100 + i, juce::String (zooms[i]) + " %", true, i == zoomIndex);
-    for (int i = 0; i < OctoColours::numThemes; ++i)
-        theme.addItem (200 + i, juce::String::fromUTF8 (OctoColours::themes[i].name), true, i == OctoColours::currentTheme);
     menu.addSectionHeader ("OctoCid v" JucePlugin_VersionString);
     menu.addSubMenu ("Zoom", zoom);
-    menu.addSubMenu ("Palette", theme);
-    juce::PopupMenu look;
-    for (int i = 0; i < OctoLook::numLooks; ++i)
-        look.addItem (300 + i, juce::String::fromUTF8 (OctoLook::looks[i].name), true, i == OctoLook::current);
-    menu.addSubMenu ("Style", look);
+    juce::PopupMenu banks;
+    for (int i = 0; i < octocid::FactoryBanks::count; ++i)
+        banks.addItem (400 + i, octocid::FactoryBanks::names[i]);
+    banks.addSeparator();
+    banks.addItem (499, juce::String::fromUTF8 ("Revenir à mes patterns d'avant"), sequencer.canRestoreBank());
+    menu.addSubMenu (juce::String::fromUTF8 ("Patterns d'usine (remplace A à H)"), banks);
 
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton), [this] (int r)
     {
         if (r >= 100 && r < 103) setZoom (r - 100);
         else if (r >= 200 && r < 200 + OctoColours::numThemes) setTheme (r - 200);
-        else if (r >= 300 && r < 300 + OctoLook::numLooks)
-        {
-            OctoLook::apply (r - 300);
-            OctoPrefs::setInt ("look", OctoLook::current);
-            setTheme (OctoColours::currentTheme);
-        }
+        else if (r >= 400 && r < 400 + octocid::FactoryBanks::count) sequencer.loadFactoryBank (r - 400);
+        else if (r == 499) sequencer.restorePreviousBank();
     });
 }
 

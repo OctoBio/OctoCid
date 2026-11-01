@@ -638,9 +638,9 @@ void OctoCidAudioProcessor::applyProgram (int index)
 juce::AudioProcessorEditor* OctoCidAudioProcessor::createEditor()
 {
     // La palette est appliquée avant de construire les composants
-    OctoColours::applyTheme (OctoPrefs::getInt ("theme", 2));
-    OctoLook::apply (OctoPrefs::getInt ("look", OctoLook::defaultLook));
-    OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
+    OctoColours::applyTheme (2);                       // design figé (Papier)
+    OctoLook::apply (OctoLook::defaultLook);            // glitch fort + potards néon
+    OctoDecor::apply (OctoDecor::defaultDecor);         // portail violet
     return new OctoCidAudioProcessorEditor (*this);
 }
 

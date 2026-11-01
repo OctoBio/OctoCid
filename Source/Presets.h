@@ -3,7 +3,7 @@
 #include <utility>
 
 //==============================================================================
-// Presets d'usine (son seulement ; les patterns arriveront avec le séquenceur).
+// Presets d'usine (son seulement : les patterns du séquenceur ne sont pas touchés).
 // Chaque preset part des valeurs par défaut, puis applique ses réglages, en
 // unités réelles (%, ms, dB, index de choix).
 //==============================================================================
@@ -86,6 +86,38 @@ namespace FactoryPresets
           { { "tune", 12 }, { "cutoff", 20 }, { "resonance", 97 }, { "envmod", 18 },
             { "decay", 95 }, { "accent", 60 }, { "filtertrack", 100 }, { "filterdrive", 70 },
             { "slidetime", 260 }, { "slidepunch", 60 }, { "volume", -2.2 }, { "dlymix", 15 }, { "dlytime", 6 }, { "dlyfb", 40 }, { "revmix", 20 }, { "revdecay", 75 }, { nullptr, 0 } } },
+        { "Hardfloor Spiral", "Acid dur et carré, accents qui claquent, écho pointé",
+          { { "waveform", 1 }, { "cutoff", 26 }, { "resonance", 92 }, { "envmod", 85 }, { "decay", 22 }, { "accent", 100 },
+            { "sweepspeed", 2 }, { "slidetime", 80 },
+            { "drivetype", 1 }, { "drive", 60 }, { "drivetone", 60 }, { "drivemix", 100 }, { "punch", 70 }, { "punchattack", 6 },
+            { "dlymix", 20 }, { "dlytime", 3 }, { "dlyfb", 42 }, { "volume", -0.8 }, { nullptr, 0 } } },
+
+        { "Minimal Click", "Très court et sec, juste un clic de filtre",
+          { { "cutoff", 22 }, { "resonance", 55 }, { "envmod", 30 }, { "decay", 0 }, { "accent", 70 },
+            { "accentdecay", 60 }, { "softattack", 0.3f }, { "punch", 60 }, { "punchattack", 4 }, { "volume", 1.7 }, { nullptr, 0 } } },
+
+        { "Goa Roller", "Psytrance qui roule, suit le clavier, écho de croches",
+          { { "tune", 12 }, { "cutoff", 40 }, { "resonance", 76 }, { "envmod", 55 }, { "decay", 2 }, { "accent", 90 }, { "sweepspeed", 2 }, { "filtertrack", 100 }, { "slidetime", 60 }, { "drivetype", 1 }, { "drive", 30 }, { "drivetone", 70 }, { "drivemix", 60 }, { "dlymix", 26 }, { "dlytime", 2 }, { "dlyfb", 60 }, { "revmix", 10 }, { "revdecay", 45 }, { "volume", 1.7 }, { nullptr, 0 } } },
+
+        { "Ghetto Acid", "Sale et lourd : sub, disto avant le VCA, filtre fermé",
+          { { "cutoff", 12 }, { "resonance", 80 }, { "envmod", 95 }, { "decay", 25 }, { "accent", 100 }, { "sweepspeed", 2 }, { "subosc", 1 }, { "sublevel", 55 }, { "drivetype", 1 }, { "drive", 85 }, { "drivetone", 50 }, { "drivemix", 100 }, { "drivepos", 1 }, { "punch", 40 }, { "volume", -0.2 }, { nullptr, 0 } } },
+
+        { "Bubble Bath", "La résonance fait des bulles au rythme du LFO",
+          { { "waveform", 1 }, { "cutoff", 36 }, { "resonance", 72 }, { "envmod", 35 }, { "decay", 60 }, { "accent", 55 }, { "lfosync", 6 }, { "lfoshape", 1 }, { "lfodest", 1 }, { "lfodepth", 100 }, { "revmix", 16 }, { "revdecay", 50 }, { "revtone", 70 }, { "volume", -1.0 }, { nullptr, 0 } } },
+
+        { "Laser Zap", "Balayage éclair sur chaque note, très brillant",
+          { { "tune", 12 }, { "cutoff", 4 }, { "resonance", 88 }, { "envmod", 100 }, { "decay", 4 }, { "accent", 100 },
+            { "sweepspeed", 2 }, { "filterfm", 30 }, { "drivetype", 2 }, { "drive", 40 }, { "drivetone", 80 }, { "drivemix", 50 },
+            { "dlymix", 20 }, { "dlytime", 0 }, { "dlyfb", 50 }, { "volume", -0.4 }, { nullptr, 0 } } },
+
+        { "Analog Drift", "Chaud et vivant : dérive analogique, étouffé, glides doux",
+          { { "tune", 12 }, { "cutoff", 30 }, { "resonance", 62 }, { "envmod", 40 }, { "decay", 72 }, { "accent", 50 }, { "analog", 100 }, { "muffler", 1 }, { "slidetime", 220 }, { "softattack", 15 }, { "revmix", 14 }, { "revdecay", 45 }, { "revtone", 40 }, { "volume", 4.8 }, { nullptr, 0 } } },
+
+        { "Industrial Grind", "Carré broyé : drive de filtre, FM et disto rat sombre",
+          { { "waveform", 1 }, { "cutoff", 45 }, { "resonance", 74 }, { "envmod", 82 }, { "decay", 20 }, { "accent", 90 }, { "filterdrive", 100 }, { "filterfm", 60 }, { "lfosync", 4 }, { "lfoshape", 2 }, { "lfodest", 0 }, { "lfodepth", 45 }, { "drivetype", 2 }, { "drive", 85 }, { "drivetone", 85 }, { "drivemix", 100 }, { "drivepos", 1 }, { "punch", 70 }, { "volume", -2.1 }, { nullptr, 0 } } },
+
+        { "Space Echo Arp", "Notes courtes perdues dans l'écho et la réverbe",
+          { { "waveform", 1 }, { "cutoff", 50 }, { "resonance", 66 }, { "envmod", 50 }, { "decay", 3 }, { "accent", 70 }, { "dlymix", 40 }, { "dlytime", 3 }, { "dlyfb", 72 }, { "revmix", 30 }, { "revdecay", 85 }, { "revtone", 55 }, { "volume", -1.4 }, { nullptr, 0 } } },
     };
 
     inline constexpr int count = (int) (sizeof (list) / sizeof (list[0]));
