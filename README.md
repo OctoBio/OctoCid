@@ -65,6 +65,19 @@ avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton 
   Filter FM, Filter Drive, Sub Osc, Muffler, Analog (dérive lente + rampe d'oscillateur imparfaite) —
   à leur réglage par défaut, le son est celui de l'original
 
+## Page EFFETS
+
+Bouton **EFFETS** (sous SLIME MODS) : effets maison pensés pour rendre l'acid plus percutant ou plus planant,
+tous à zéro par défaut (son sec), environ 2 % d'un cœur CPU tous activés :
+
+- **FRAPPE** : **Impact** (façonneur de transitoires : l'attaque de chaque note claque, jusqu'à +9 dB) et
+  **Smash** (compression 3 bandes vers le haut et vers le bas, esprit « OTT » : détails remontés, ligne dense et brillante)
+- **JET** : flanger ou phaser stéréo synchronisé au tempo (4 mesures à 1/8), avec feedback : le mouvement qui « serpente »
+- **PUMP** : pompe rythmique (effet sidechain) au 1/4, 1/8, 1/2 ou 1/4 pointé
+- **STEREO** : **Width**, élargisseur compatible mono (le grave reste au centre)
+
+Ordre : Impact → Punch → Smash → Jet → Delay → Reverb → Pump → Width.
+
 ## Mes presets
 
 Menu « ... » > **Enregistrer le preset…** : le son actuel est sauvegardé dans `Documents\OctoBio\OctoCid\Presets`

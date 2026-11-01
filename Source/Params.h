@@ -68,6 +68,30 @@ namespace ParamIDs
     inline const juce::ParameterID lfoDepth { "lfodepth", 1 };
     inline const juce::ParameterID lfoShape { "lfoshape", 1 };
     inline const juce::ParameterID lfoDest  { "lfodest",  1 };
+
+    // Effets « percutant / transcendant »
+    inline const juce::ParameterID impact   { "impact",   1 };
+    inline const juce::ParameterID smash    { "smash",    1 };
+    inline const juce::ParameterID jetMix   { "jetmix",   1 };
+    inline const juce::ParameterID jetMode  { "jetmode",  1 };
+    inline const juce::ParameterID jetRate  { "jetrate",  1 };
+    inline const juce::ParameterID jetFb    { "jetfb",    1 };
+    inline const juce::ParameterID pump     { "pump",     1 };
+    inline const juce::ParameterID pumpRate { "pumprate", 1 };
+    inline const juce::ParameterID width    { "width",    1 };
+}
+
+namespace JetSync
+{
+    // Durée d'un cycle de Jet, en noires
+    inline const juce::StringArray names { "4 mes.", "2 mes.", "1 mes.", "1/2", "1/4", "1/8" };
+    inline constexpr double beats[] = { 16.0, 8.0, 4.0, 2.0, 1.0, 0.5 };
+}
+
+namespace PumpSync
+{
+    inline const juce::StringArray names { "1/4", "1/8", "1/2", "1/4." };
+    inline constexpr double beats[] = { 1.0, 0.5, 2.0, 1.5 };
 }
 
 namespace SeqRes

@@ -7,6 +7,7 @@
 #include "dsp/AcidVoice.h"
 #include "dsp/Drive.h"
 #include "dsp/Fx.h"
+#include "dsp/FxPlus.h"
 #include "seq/Sequencer.h"
 #include "seq/PatternIO.h"
 
@@ -121,6 +122,12 @@ private:
     octocid::Drive drive;
     octocid::ToneShaper toneShaper;
     octocid::PunchCompressor punch;
+    octocid::TransientShaper impactFx;
+    octocid::MultibandSmash smashFx;
+    octocid::JetModulator jetFx;
+    octocid::Pumper pumpFx;
+    octocid::StereoWidener widthFx;
+    double fxPpq = 0.0;
     octocid::PingPongDelay delay;
     octocid::PlateReverb reverb;
 
@@ -170,7 +177,8 @@ private:
                            *driveType, *driveAmt, *driveTone, *driveMix, *drivePos,
                            *punchAmt, *punchAttack, *delayMix, *delayTime, *delayFb, *reverbMix, *reverbDecay, *reverbTone,
                            *seqOn, *seqPattern, *seqRes, *seqSwing, *seqGate, *analog,
-                           *lfoRate, *lfoSync, *lfoDepth, *lfoShape, *lfoDest;
+                           *lfoRate, *lfoSync, *lfoDepth, *lfoShape, *lfoDest,
+                           *impact, *smash, *jetMix, *jetMode, *jetRate, *jetFb, *pump, *pumpRate, *width;
     } p {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OctoCidAudioProcessor)

@@ -27,6 +27,9 @@ OctoCidAudioProcessor::OctoCidAudioProcessor()
     p.lfoShape = raw (lfoShape);   p.lfoDest = raw (lfoDest);
     p.seqOn = raw (seqOn);         p.seqPattern = raw (seqPattern); p.seqRes = raw (seqRes); p.seqSwing = raw (seqSwing);
     p.seqGate = raw (seqGate);     p.analog = raw (analog);
+    p.impact = raw (impact); p.smash = raw (smash); p.jetMix = raw (jetMix); p.jetMode = raw (jetMode);
+    p.jetRate = raw (jetRate); p.jetFb = raw (jetFb); p.pump = raw (ParamIDs::pump); p.pumpRate = raw (pumpRate);
+    p.width = raw (ParamIDs::width);
 
     // 8 patterns de démo au départ
     masterBank = octocid::PatternTools::demoBank();
@@ -97,6 +100,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
     percent (ParamIDs::reverbDecay, "Reverb Decay", 35.0f);
     percent (ParamIDs::reverbTone, "Reverb Tone", 50.0f);
 
+    // --- Effets (page EFFETS ; tous à zéro par défaut)
+    percent (ParamIDs::impact, "Impact", 0.0f);
+    percent (ParamIDs::smash,  "Smash", 0.0f);
+    percent (ParamIDs::jetMix, "Jet Mix", 0.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::jetMode, "Jet Mode", StringArray { "Flanger", "Phaser" }, 0));
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::jetRate, "Jet Rate", JetSync::names, 2));
+    percent (ParamIDs::jetFb,  "Jet Feedback", 50.0f);
+    percent (ParamIDs::pump,   "Pump", 0.0f);
+    layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::pumpRate, "Pump Rate", PumpSync::names, 0));
+    percent (ParamIDs::width,  "Width", 0.0f);
+
     // --- Séquenceur
     layout.add (std::make_unique<AudioParameterBool> (ParamIDs::seqOn, "Seq On", false));
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::seqPattern, "Seq Pattern",
@@ -135,6 +149,9 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     monoBuffer.setSize (1, maxBlockSize, false, true, false);
 
     punch.prepare (sampleRate);
+    impactFx.prepare (sampleRate); smashFx.prepare (sampleRate); jetFx.prepare (sampleRate);
+    pumpFx.prepare (sampleRate); widthFx.prepare (sampleRate);
+    fxPpq = 0.0;
     delay.prepare (sampleRate);
     reverb.prepare (sampleRate);
 
@@ -146,6 +163,7 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     voice.reset();
     drive.reset();
     punch.reset();
+    impactFx.reset(); smashFx.reset(); jetFx.reset(); widthFx.reset();
     delay.reset();
     sequencer.reset();
     wasPlaying = false;
@@ -220,6 +238,13 @@ void OctoCidAudioProcessor::updateParams() noexcept
         drive.reset();               // les états du Drive ne valent rien d'un emplacement à l'autre
     }
     voice.setPreVcaDrive (drivePreVca ? &drive : nullptr);
+
+    // Effets
+    impactFx.setAmount (p.impact->load() * 0.01f);
+    smashFx.setAmount (p.smash->load() * 0.01f);
+    jetFx.setParams ((int) p.jetMode->load(), p.jetMix->load() * 0.01f, p.jetFb->load() * 0.0095f);
+    pumpFx.setDepth (p.pump->load() * 0.01f);
+    widthFx.setAmount (p.width->load() * 0.01f);
 
     // Punch + FX (fréquence de l'hôte)
     punch.setAmount (p.punchAmt->load() * 0.01f);
@@ -553,16 +578,40 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     const bool usePunch = punch.isActive();
     const bool useDelay = delay.isActive();
     const bool useReverb = reverb.isActive();
+    const bool useImpact = impactFx.isActive(), useSmash = smashFx.isActive(), useJet = jetFx.isActive();
+    const bool usePump = pumpFx.isActive(), useWidth = widthFx.isActive();
+
+    // Position musicale pour le Jet et la Pompe : celle du DAW en lecture, sinon roue libre à son tempo
+    double bpm = 120.0;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+        {
+            if (auto b = pos->getBpm()) bpm = juce::jlimit (20.0, 400.0, *b);
+            if (pos->getIsPlaying())
+                if (auto ppq = pos->getPpqPosition()) fxPpq = *ppq;
+        }
+    const double dPpq = bpm / 60.0 / hostSampleRate;
+    const double jetBeats = JetSync::beats[juce::jlimit (0, JetSync::names.size() - 1, (int) p.jetRate->load())];
+    const double pumpBeats = PumpSync::beats[juce::jlimit (0, PumpSync::names.size() - 1, (int) p.pumpRate->load())];
 
     outputGain.setTargetValue (juce::Decibels::decibelsToGain (p.volume->load(), -60.0f) + 1.0e-6f);
     for (int i = 0; i < numSamples; ++i)
     {
+        const double ppqNow = fxPpq + dPpq * (double) i;
         float l = left[i];
-        if (usePunch)
-            l = punch.process (l);
+        if (useImpact) l = impactFx.process (l);
+        if (usePunch)  l = punch.process (l);
+        if (useSmash)  l = smashFx.process (l);
         float r = l;
+        if (useJet)    jetFx.process (l, (float) std::fmod (ppqNow / jetBeats, 1.0), l, r);
         if (useDelay)  delay.process (l, r);
         if (useReverb) reverb.process (l, r);
+        if (usePump)
+        {
+            const float pg = pumpFx.gain ((float) std::fmod (ppqNow / pumpBeats, 1.0));
+            l *= pg; r *= pg;
+        }
+        if (useWidth)  widthFx.process (l, r);
 
         const float g = outputGain.getNextValue();
         l = safetyLimit (l * g);
@@ -576,6 +625,8 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         else
             left[i] = 0.5f * (l + r);   // sortie mono : on replie la stéréo des FX
     }
+
+    fxPpq += dPpq * (double) numSamples;
 
     for (int ch = 2; ch < buffer.getNumChannels(); ++ch)
         buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);

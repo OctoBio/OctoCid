@@ -88,6 +88,42 @@ OctoCidAudioProcessorEditor::Drawer::Drawer (OctoCidAudioProcessor& p)
     addCombo (p, delayTime, "Temps", fxItems);
     knob (delayFb, "Feedback", fxItems);
     knob (reverbTone, "Rev. Tone", fxItems);
+
+    // Page EFFETS
+    knob (impact, "Impact", hitItems);
+    knob (smash, "Smash", hitItems);
+    addCombo (p, jetMode, "Mode", jetItems);
+    addCombo (p, jetRate, "Vitesse", jetItems);
+    knob (jetFb, "Feedback", jetItems);
+    knob (jetMix, "Mix", jetItems);
+    knob (ParamIDs::pump, "Pump", pumpItems);
+    addCombo (p, pumpRate, "Rythme", pumpItems);
+    knob (ParamIDs::width, "Width", stereoItems);
+    setPage (0);
+}
+
+void OctoCidAudioProcessorEditor::Drawer::setPage (int newPage)
+{
+    page = newPage;
+    for (auto& c : slimeItems) c->setVisible (page == 0);
+    for (auto& c : fxItems)    c->setVisible (page == 0);
+    for (auto* v : { &hitItems, &jetItems, &pumpItems, &stereoItems })
+        for (auto& c : *v) c->setVisible (page == 1);
+    resized();
+    repaint();
+}
+
+namespace
+{
+    // Page EFFETS : 4 panneaux de largeurs 2 / 4 / 2 / 1
+    juce::Rectangle<float> effectPanel (juce::Rectangle<float> r, int index)
+    {
+        const float units[] = { 2.2f, 4.0f, 2.2f, 1.2f };
+        const float total = 9.6f, gap = 8.0f, w = r.getWidth() - gap * 3.0f;
+        float x = r.getX();
+        for (int i = 0; i < index; ++i) x += w * units[i] / total + gap;
+        return { x, r.getY(), w * units[index] / total, r.getHeight() };
+    }
 }
 
 juce::Component* OctoCidAudioProcessorEditor::Drawer::addCombo (OctoCidAudioProcessor& p, const juce::ParameterID& id,
@@ -110,6 +146,13 @@ void OctoCidAudioProcessorEditor::Drawer::paint (juce::Graphics& g)
     auto r = getLocalBounds().toFloat().reduced (1.0f);
     const float split = r.getWidth() * 0.63f;
     const auto org = getPosition().toFloat();
+    if (page == 1)
+    {
+        const char* titles[] = { "FRAPPE", "JET", "PUMP", "STEREO" };
+        for (int i = 0; i < 4; ++i)
+            octoui::drawPanel (g, effectPanel (r, i), titles[i], i == 0, org);
+        return;
+    }
     octoui::drawPanel (g, r.withWidth (split - 4.0f), "SLIME MODS", true, org);
     octoui::drawPanel (g, r.withTrimmedLeft (split + 4.0f), "PUNCH + FX", false, org);
 }
@@ -122,6 +165,14 @@ void OctoCidAudioProcessorEditor::Drawer::resized()
     auto right = r.withTrimmedLeft (split + 4).reduced (8, 0).withTrimmedTop (20).withTrimmedBottom (6);
     layoutGrid (left, slimeItems, 7);
     layoutGrid (right, fxItems, 4);
+
+    const auto rf = getLocalBounds().toFloat().reduced (1.0f);
+    std::vector<std::unique_ptr<juce::Component>>* groups[] = { &hitItems, &jetItems, &pumpItems, &stereoItems };
+    for (int i = 0; i < 4; ++i)
+    {
+        auto area = effectPanel (rf, i).toNearestInt().reduced (6, 0).withTrimmedTop (26).withTrimmedBottom (8);
+        layoutGrid (area, *groups[i], (int) groups[i]->size());
+    }
 }
 
 //==============================================================================
@@ -255,10 +306,13 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     waveform  = std::make_unique<octoui::Segmented> (st, ParamIDs::waveform, juce::StringArray { "Saw", "Square" }, "Waveform");
     drawerButton.setClickingTogglesState (false);
     drawerButton.setComponentID ("drawerButton");
-    drawerButton.onClick = [this] { toggleDrawer(); };
+    drawerButton.onClick = [this] { toggleDrawer (0); };
+    effectsButton.onClick = [this] { toggleDrawer (1); };
+    effectsButton.setComponentID ("effectsButton");
+    effectsButton.setTooltip ("Effets : Impact, Smash, Jet (flanger / phaser), Pump, Width");
     drawerButton.setTooltip ("Ouvre / ferme le tiroir des reglages avances et des effets");
     for (auto* c : std::initializer_list<juce::Component*> { tune.get(), cutoff.get(), resonance.get(), envMod.get(), decay.get(),
-                                                             accent.get(), waveform.get(), volume.get(), &drawerButton })
+                                                             accent.get(), waveform.get(), volume.get(), &drawerButton, &effectsButton })
         add (*c);
 
     // --- Séquenceur, puis tiroir par-dessus la zone haute
@@ -338,7 +392,8 @@ void OctoCidAudioProcessorEditor::resized()
     waveform->setBounds (kx + 4, ky + 34, 116, 44);
     kx += 126;
     volume->setBounds (kx, ky, kw, kh);
-    drawerButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 46, 112, 34);
+    drawerButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 24, 112, 32);
+    effectsButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 64, 112, 32);
 
     // Séquenceur
     seqArea = { 10, 346, 980, 266 };
@@ -353,10 +408,19 @@ void OctoCidAudioProcessorEditor::resized()
 }
 
 //==============================================================================
-void OctoCidAudioProcessorEditor::toggleDrawer()
+void OctoCidAudioProcessorEditor::toggleDrawer (int page)
 {
-    drawerTarget = drawerTarget > 0.5f ? 0.0f : 1.0f;
-    drawerButton.setButtonText (drawerTarget > 0.5f ? "FERMER" : "SLIME MODS");
+    // Même bouton : ferme ; autre bouton tiroir ouvert : change de page sans le refermer
+    if (drawerTarget > 0.5f && drawer.getPage() == page)
+        drawerTarget = 0.0f;
+    else
+    {
+        drawer.setPage (page);
+        drawerTarget = 1.0f;
+    }
+    const bool open = drawerTarget > 0.5f;
+    drawerButton.setButtonText (open && page == 0 ? "FERMER" : "SLIME MODS");
+    effectsButton.setButtonText (open && page == 1 ? "FERMER" : "EFFETS");
 }
 
 void OctoCidAudioProcessorEditor::timerCallback()

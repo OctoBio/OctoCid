@@ -37,7 +37,7 @@ private:
     void applyAppearance();
     void rebuildPresetBox();
     void savePresetDialog();
-    void toggleDrawer();
+    void toggleDrawer (int page);
 
     //==========================================================================
     // Contenu à l'échelle 1 (le zoom est une transformation de ce composant)
@@ -56,8 +56,12 @@ private:
         explicit Drawer (OctoCidAudioProcessor&);
         void paint (juce::Graphics&) override;
         void resized() override;
+        void setPage (int newPage);
+        int getPage() const noexcept { return page; }
     private:
+        int page = 0;   // 0 : SLIME MODS + PUNCH/FX, 1 : EFFETS
         std::vector<std::unique_ptr<juce::Component>> slimeItems, fxItems;
+        std::vector<std::unique_ptr<juce::Component>> hitItems, jetItems, pumpItems, stereoItems;
         std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;
         juce::Component* addCombo (OctoCidAudioProcessor&, const juce::ParameterID&, const juce::String& name,
                                    std::vector<std::unique_ptr<juce::Component>>& into);
@@ -87,7 +91,7 @@ private:
     // Panneau 303
     std::unique_ptr<octoui::Knob> tune, cutoff, resonance, envMod, decay, accent, volume;
     std::unique_ptr<octoui::Segmented> waveform;
-    juce::TextButton drawerButton { "SLIME MODS" };
+    juce::TextButton drawerButton { "SLIME MODS" }, effectsButton { "EFFETS" };
 
     // Tiroir et séquenceur
     Drawer drawer;
