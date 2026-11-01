@@ -70,7 +70,7 @@ avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton 
 Bouton **EFFETS** (sous SLIME MODS) : effets maison pensés pour rendre l'acid plus percutant ou plus planant,
 tous à zéro par défaut (son sec), environ 2 % d'un cœur CPU tous activés :
 
-- **FRAPPE** : **Impact** (façonneur de transitoires : l'attaque de chaque note claque, jusqu'à +9 dB) et
+- **FRAPPE** : **Impact** (façonneur de transitoires : l'attaque de chaque note claque, jusqu'à +10 dB, sans gonfler tout le son) et
   **Smash** (compression 3 bandes vers le haut et vers le bas, esprit « OTT » : détails remontés, ligne dense et brillante)
 - **JET** : flanger ou phaser stéréo synchronisé au tempo (4 mesures à 1/8), avec feedback : le mouvement qui « serpente »
 - **PUMP** : pompe rythmique (effet sidechain) au 1/4, 1/8, 1/2 ou 1/4 pointé
