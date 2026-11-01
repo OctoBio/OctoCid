@@ -231,6 +231,16 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
         add (*c);
 
     add (mascot);
+    {
+        MascotView::Sources src;
+        auto P = [&st] (const juce::ParameterID& id) { return dynamic_cast<juce::RangedAudioParameter*> (st.getParameter (id.getParamID())); };
+        src.cutoff = P (ParamIDs::cutoff); src.resonance = P (ParamIDs::resonance); src.envmod = P (ParamIDs::envMod);
+        src.decay = P (ParamIDs::decay); src.drive = P (ParamIDs::driveAmt); src.driveType = P (ParamIDs::driveType);
+        src.tune = P (ParamIDs::tune); src.lfoDepth = P (ParamIDs::lfoDepth); src.anim = P (ParamIDs::snailAnim);
+        src.noteCount = &processor.noteCount; src.lastAccent = &processor.lastAccent; src.lastSlide = &processor.lastSlide;
+        src.lastNote = &processor.lastNote; src.lfo = &processor.lfoView;
+        mascot.setSources (src);
+    }
 
     // --- Panneau 303
     tune      = std::make_unique<octoui::Knob> (st, ParamIDs::tune, "Tune", true);
@@ -297,7 +307,9 @@ void OctoCidAudioProcessorEditor::resized()
     driveTone->setBounds (drivePanel.getX() + 30 + 112, dy, dk, dh);
     driveMix->setBounds (drivePanel.getX() + 30 + 224, dy, dk, dh);
 
-    mascot.setBounds (mascotArea);
+    // la mascotte déborde un peu (sauts, glissades) ; l'escargot reste dessiné dans sa zone
+    mascot.setBounds (mascotArea.getX() - 10, topBar.getBottom(), mascotArea.getWidth() + 20, mascotArea.getBottom() + 4 - topBar.getBottom());
+    mascot.setSnailArea (mascotArea.toFloat().translated ((float) -mascot.getX(), (float) -mascot.getY()));
 
     lfoSync.setBounds (lfoPanel.getX() + 12, lfoPanel.getY() + 22, 92, 24);
     lfoShape->setBounds (lfoPanel.getX() + 110, lfoPanel.getY() + 22, 150, 24);

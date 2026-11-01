@@ -239,6 +239,7 @@ namespace octocid
 
             // --- LFO
             const float lfoRaw = lfo.process();                       // tourne toujours (phase continue)
+            lastLfo = lfoRaw;
             const bool lfoOn = sm.lfoDepth > 1.0e-4f;
             const float lfoOut = lfoOn ? lfoRaw * sm.lfoDepth : 0.0f;
             const int lfoDest = target.lfoDest;
@@ -330,6 +331,7 @@ namespace octocid
         float getAccentSweep() const noexcept { return sweep; }
         float getPitch() const noexcept { return 69.0f + 12.0f * std::log2 (freq / 440.0f); }
         bool isGateOn() const noexcept { return gate; }
+        float getLfoValue() const noexcept { return lastLfo; }   // pour l'animation de l'escargot
         bool isAccent() const noexcept { return accentNote; }
 
     private:
@@ -379,6 +381,7 @@ namespace octocid
         SvfLowpass ampDeclicker, mufflerLow;
         NoteStack notes;
         Lfo lfo;
+        float lastLfo = 0.0f;
         Drive* preVcaDrive = nullptr;
 
         VoiceParams target, sm;

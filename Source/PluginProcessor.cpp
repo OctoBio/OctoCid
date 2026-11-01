@@ -256,7 +256,9 @@ void OctoCidAudioProcessor::handleEvent (const octocid::NoteEvent& ev) noexcept
     switch (ev.type)
     {
         case NoteEvent::On:
+            lastSlide.store (voice.isGateOn(), std::memory_order_relaxed);
             voice.noteOnAccent (ev.note, ev.accent);
+            noteCount.fetch_add (1, std::memory_order_relaxed);
             lastNote.store (ev.note, std::memory_order_relaxed);
             lastAccent.store (ev.accent, std::memory_order_relaxed);
             break;
@@ -541,6 +543,7 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     float* left = buffer.getWritePointer (0);
     for (int pos = 0; pos < numSamples; pos += maxBlockSize)
         renderChunk (left + pos, juce::jmin (maxBlockSize, numSamples - pos), pos);
+        lfoView.store (voice.getLfoValue(), std::memory_order_relaxed);
 
     // Punch (mono), puis delay et reverb (stéréo), puis volume et limiteur de sécurité
     const bool stereo = buffer.getNumChannels() > 1;

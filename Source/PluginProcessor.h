@@ -61,6 +61,10 @@ public:
     // Retours audio -> UI (atomiques, sans verrou)
     std::atomic<int>  lastNote { -1 };
     std::atomic<bool> lastAccent { false };
+    // Animation de l'escargot (lecture seule côté interface)
+    std::atomic<int>   noteCount { 0 };     // incrémenté à chaque note jouée
+    std::atomic<bool>  lastSlide { false }; // la dernière note était glissée
+    std::atomic<float> lfoView { 0.0f };    // valeur du LFO (-1..1)
     std::atomic<int>  seqStep { -1 };            // pas en cours (-1 : arrêté)
     std::atomic<int>  seqActivePattern { 0 };    // pattern qui joue
     std::atomic<int>  seqQueuedPattern { 0 };    // pattern qui jouera au prochain cycle

@@ -2,7 +2,7 @@
 
 Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte escargot.
 
-> Statut : étape 5 (interface). Jouable au clavier, au piano roll ou avec le séquenceur intégré.
+> Statut : étape 6 (escargot animé). Jouable au clavier, au piano roll ou avec le séquenceur intégré.
 
 ## Interface
 
@@ -16,6 +16,14 @@ Fenêtre 1000 × 620 (zoom 100 / 125 / 150 % dans le menu « ... »), tout en ve
 
 Potards : valeur affichée au survol et pendant le réglage, double-clic = valeur par défaut,
 Ctrl + glisser = réglage fin, molette. Trois palettes au choix (Slime, Néon, Papier).
+
+## L'escargot
+
+Il réagit au son (30 images/s, seulement sa zone est redessinée, le corps est mis en cache) :
+pupilles qui se dilatent avec le **Cutoff**, yeux qui tremblent avec la **Resonance**, flaque qui grandit avec
+l'**Env Mod**, bave qui s'allonge avec le **Decay**, saut sur les **accents**, glissade et traînée lumineuse sur les
+**slides**, coquille qui chauffe et transpire avec le **Drive**, pédoncules qui ondulent avec le **LFO** et penchent
+avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton « Escargot » pour le figer (sauvegardé).
 
 ## Jeu au clavier
 
@@ -85,6 +93,6 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 2. Moteur sonore (osc, filtre diode ladder, enveloppes, accent, slide) ✅
 3. Drive, LFO, Slime Mods ✅ (+ Punch, Delay, Reverb, presets d'usine son)
 4. Séquenceur + sync DAW + export MIDI ✅
-5. Interface ✅ (palette à figer)
-6. Escargot animé
+5. Interface ✅ (fond portail, style glitch, potards néon)
+6. Escargot animé ✅
 7. Presets avec patterns, finitions, pluginval

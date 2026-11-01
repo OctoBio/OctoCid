@@ -63,28 +63,58 @@ namespace OctoSnail
     inline constexpr int mascotStyle = 8;
     inline constexpr int numStyles = (int) (sizeof (styles) / sizeof (styles[0]));
 
-    inline void draw (juce::Graphics& g, juce::Rectangle<float> area, const Style& st = styles[0])
+    // État d'animation (calculé par l'interface, 0 = au repos)
+    struct Anim
+    {
+        float pupil = 0.5f;      // dilatation des pupilles 0..1 (Cutoff)
+        float jitter = 0.0f;     // tremblement des yeux (Resonance), unités de dessin
+        int   frame = 0;         // graine du tremblement
+        float gazeX = 0.0f, gazeY = 0.0f;
+        float stalkL = 0.0f, stalkR = 0.0f;   // inclinaison des pédoncules (rad) : LFO + Tune
+        float drool = 1.0f;      // longueur de la bave (Decay)
+        float slime = 1.0f;      // taille de la flaque (Env Mod)
+        float trailGlow = 0.0f;  // traînée qui brille (slide)
+        float heat = 0.0f;       // coquille qui chauffe (Drive) 0..1
+        float blink = 0.0f;      // 0 ouvert .. 1 fermé
+        float sleep = 0.0f;      // 0 éveillé .. 1 endormi (Zzz)
+        float jumpY = 0.0f;      // saut (accent), unités de dessin (négatif = haut)
+        float slideX = 0.0f;     // glissade (slide)
+        float time = 0.0f;       // secondes (gouttes, Zzz)
+    };
+    enum Layer { kUnder = 1, kStatic = 2, kOver = 4, kAll = 7 };
+
+    inline void draw (juce::Graphics& g, juce::Rectangle<float> area, const Style& st = styles[0],
+                      const Anim& an = {}, int layers = kAll)
     {
         const juce::Colour kAcid (st.acid), kAcidHi (st.acidHi), kAcidDeep (st.acidDeep);
         const juce::Colour kSkinHi (st.skinHi), kSkin (st.skin), kSkinLo (st.skinLo);
         constexpr float DW = 256.0f, DH = 186.0f;
         const float s = juce::jmin (area.getWidth() / DW, area.getHeight() / DH);
         const auto o = area.getCentre().translated (-DW * 0.5f * s, -DH * 0.5f * s);
-        auto P = [&] (float x, float y) { return juce::Point<float> (o.x + (x + 3.0f) * s, o.y + (y + 16.0f) * s); };
+        const bool moveStatic = (layers & kStatic) != 0 && layers != kStatic;   // cache : corps dessiné au repos
+        const float mx = (layers == kStatic) ? 0.0f : an.slideX, my = (layers == kStatic) ? 0.0f : an.jumpY;
+        juce::ignoreUnused (moveStatic);
+        auto P = [&] (float x, float y) { return juce::Point<float> (o.x + (x + 3.0f + mx) * s, o.y + (y + 16.0f + my) * s); };
         auto R = [&] (float cx, float cy, float w, float h) { return juce::Rectangle<float> (w * s, h * s).withCentre (P (cx, cy)); };
         auto stroke = [&] (float w) { return juce::PathStrokeType (w * s, juce::PathStrokeType::curved, juce::PathStrokeType::rounded); };
         juce::Random rnd (1303);
 
         //======================================================================
         // Ombre au sol
-        for (int i = 0; i < 6; ++i)
+        if (layers & kUnder)
         {
-            g.setColour (juce::Colours::black.withAlpha (0.07f));
-            g.fillEllipse (R (128, 153, 210 - i * 18, 16 - i * 1.5f));
+            const float lift = juce::jlimit (0.0f, 1.0f, -an.jumpY / 14.0f);
+            for (int i = 0; i < 6; ++i)
+            {
+                g.setColour (juce::Colours::black.withAlpha (0.07f * (1.0f - 0.5f * lift)));
+                const auto c0 = P (128, 153).translated (0.0f, -an.jumpY * s);
+                g.fillEllipse (juce::Rectangle<float> ((210 - i * 18) * s * (1.0f - 0.25f * lift), (16 - i * 1.5f) * s).withCentre (c0));
+            }
         }
 
         //======================================================================
         // Flaque / traînée d'acide derrière lui
+        if (layers & kUnder)
         {
             juce::Path trail;
             trail.startNewSubPath (P (2, 150));
@@ -94,6 +124,13 @@ namespace OctoSnail
             trail.cubicTo (P (60, 157), P (40, 152), P (26, 156));
             trail.cubicTo (P (14, 158), P (4, 156), P (2, 150));
             trail.closeSubPath();
+            // la flaque s'étire avec l'Env Mod, à partir de son bord droit (sous le pied)
+            trail.applyTransform (juce::AffineTransform::scale (juce::jlimit (0.4f, 2.0f, an.slime), 1.0f, P (80, 150).x, P (80, 150).y));
+            if (an.trailGlow > 0.01f)
+            {
+                g.setColour (kAcid.withAlpha (0.35f * an.trailGlow));
+                g.strokePath (trail, stroke (7.0f));
+            }
             g.setGradientFill (juce::ColourGradient (kAcid.withAlpha (0.25f), P (0, 150), kAcid.withAlpha (0.85f), P (80, 150), false));
             g.fillPath (trail);
             g.setColour (kInk.withAlpha (0.55f));
@@ -109,6 +146,8 @@ namespace OctoSnail
             }
         }
 
+        if (layers & kStatic)
+        {
         //======================================================================
         // Corps : pied visqueux + cou dressé + tête
         juce::Path body;
@@ -370,6 +409,79 @@ namespace OctoSnail
         }
 
         //======================================================================
+        // Bouche : rictus en coin, dents cassées, bave d'acide
+        {
+            juce::Path mouth;
+            mouth.startNewSubPath (P (194, 104));
+            mouth.cubicTo (P (202, 99), P (214, 98), P (226, 92));     // lèvre sup (coin relevé à droite)
+            mouth.cubicTo (P (226, 104), P (218, 116), P (206, 117));  // lèvre inf
+            mouth.cubicTo (P (199, 117), P (195, 111), P (194, 104));
+            mouth.closeSubPath();
+            g.setColour (juce::Colour (0xff2a0808));
+            g.fillPath (mouth);
+            {
+                juce::Graphics::ScopedSaveState ss (g);
+                g.reduceClipRegion (mouth);
+                g.setColour (juce::Colour (0xff8a1e2a));      // langue
+                g.fillEllipse (R (208, 116, 22, 10));
+                // dents du haut, de travers, une manquante
+                const float tx[] = { 198, 204, 210, 222 };
+                const float th[] = { 6, 8, 5, 7 };
+                for (int i = 0; i < 4; ++i)
+                {
+                    juce::Path t;
+                    const float y0 = 100.0f - (tx[i] - 194) * 0.22f;
+                    t.addTriangle (P (tx[i] - 2.8f, y0 - 2), P (tx[i] + 2.8f, y0 - 2.5f), P (tx[i] + 0.5f, y0 + th[i]));
+                    g.setColour (juce::Colour (0xffe9dca2)); g.fillPath (t);
+                    g.setColour (kInk); g.strokePath (t, stroke (0.8f));
+                }
+                juce::Path t2; t2.addTriangle (P (212, 118), P (217, 117), P (215, 110));
+                g.setColour (juce::Colour (0xffd8c88a)); g.fillPath (t2);
+                g.setColour (kInk); g.strokePath (t2, stroke (0.8f));
+            }
+            g.setColour (kInk);
+            g.strokePath (mouth, stroke (2.6f));
+            // ride de rictus
+            juce::Path sneer; sneer.startNewSubPath (P (222, 84)); sneer.quadraticTo (P (229, 88), P (228, 96));
+            g.strokePath (sneer, stroke (1.6f));
+
+        }
+
+
+        // Rides du front (froncé)
+        for (int i = 0; i < 3; ++i)
+        {
+            juce::Path f; f.startNewSubPath (P (198 + i * 5.0f, 70 + i * 2.0f)); f.quadraticTo (P (204 + i * 5.0f, 66 + i * 2.0f), P (209 + i * 5.0f, 71 + i * 2.0f));
+            g.setColour (kInk.withAlpha (0.55f)); g.strokePath (f, stroke (1.2f));
+        }
+        }
+        if (layers & kOver)
+        {
+        //======================================================================
+        // Coquille qui chauffe avec le Drive : rougeoie, fissures plus vives, gouttes de sueur
+        if (an.heat > 0.01f)
+        {
+            juce::Path shellH;
+            shellH.addEllipse (juce::Rectangle<float> (58.0f * s * 2.05f, 58.0f * s * 1.95f).withCentre (P (98, 80)));
+            g.setColour (juce::Colour (0xffff3a10).withAlpha (0.22f * an.heat));
+            g.fillPath (shellH);
+            g.setColour (juce::Colour (0xffffb020).withAlpha (0.5f * an.heat * (0.7f + 0.3f * std::sin (an.time * 9.0f))));
+            g.strokePath (shellH, stroke (2.5f));
+            for (int k = 0; k < 3; ++k)
+            {
+                const float ph = std::fmod (an.time * 0.9f + (float) k * 0.33f, 1.0f);
+                const float x = 70.0f + (float) k * 34.0f, y = 40.0f + (float) k * 8.0f + ph * 46.0f;
+                juce::Path d;
+                d.startNewSubPath (P (x, y - 4.5f));
+                d.quadraticTo (P (x + 3.0f, y + 0.5f), P (x, y + 2.5f));
+                d.quadraticTo (P (x - 3.0f, y + 0.5f), P (x, y - 4.5f));
+                g.setColour (juce::Colour (0xffcff4ff).withAlpha (an.heat * (1.0f - ph)));
+                g.fillPath (d);
+                g.setColour (kInk.withAlpha (0.7f * an.heat * (1.0f - ph)));
+                g.strokePath (d, stroke (0.8f));
+            }
+        }
+        //======================================================================
         // Pédoncules (le droit s'affaisse : il est défoncé)
         auto stalk = [&] (juce::Point<float> a, juce::Point<float> c, juce::Point<float> b, float w)
         {
@@ -390,15 +502,24 @@ namespace OctoSnail
         const float ek = st.eyeScale;
         const juce::Point<float> eL (174.0f - (ek - 1.0f) * 6.0f, 24.0f - (ek - 1.0f) * 10.0f);
         const juce::Point<float> eR (230.0f - (ek - 1.0f) * 4.0f, 44.0f - (ek - 1.0f) * 2.0f);
-        stalk ({ 194, 64 }, { 190, 42 }, eL, 6.0f);
-        stalk ({ 210, 66 }, { 222, 54 }, eR, 5.2f);
+        auto rotAround = [] (juce::Point<float> p, juce::Point<float> c, float a)
+        {
+            const float cs = std::cos (a), sn = std::sin (a);
+            const auto d = p - c;
+            return juce::Point<float> (c.x + d.x * cs - d.y * sn, c.y + d.x * sn + d.y * cs);
+        };
+        const juce::Point<float> bL (194, 64), bR (210, 66);
+        const auto tipL = rotAround (eL, bL, an.stalkL), tipR = rotAround (eR, bR, an.stalkR);
+        stalk (bL, rotAround ({ 190, 42 }, bL, an.stalkL * 0.6f), tipL, 6.0f);
+        stalk (bR, rotAround ({ 222, 54 }, bR, an.stalkR * 0.6f), tipR, 5.2f);
 
         //======================================================================
         // Yeux injectés, pupilles dilatées, paupières lourdes et sourcils froncés
         auto eye = [&] (float cx, float cy, float r, float lidAngle, float lookX, float lookY, int seed)
         {
             juce::Random er (seed);
-            const auto c = P (cx, cy);
+            juce::Random jr (an.frame * 131 + seed);
+            const auto c = P (cx + (jr.nextFloat() - 0.5f) * 2.0f * an.jitter, cy + (jr.nextFloat() - 0.5f) * 2.0f * an.jitter);
             const float rr = r * s;
             auto ball = juce::Rectangle<float> (rr * 2, rr * 2).withCentre (c);
             // cernes
@@ -440,7 +561,7 @@ namespace OctoSnail
                     g.strokePath (v, stroke (0.75f));
                 }
                 // iris vert acide + pupille dilatée
-                const auto ic = c.translated (lookX * rr, lookY * rr);
+                const auto ic = c.translated (juce::jlimit (-0.45f, 0.45f, lookX + an.gazeX) * rr, juce::jlimit (-0.45f, 0.45f, lookY + an.gazeY) * rr);
                 const float ir = rr * 0.50f;
                 juce::ColourGradient ig (juce::Colour (st.irisHi), ic.translated (-ir * 0.3f, -ir * 0.3f), juce::Colour (st.irisLo), ic.translated (ir, ir), true);
                 g.setGradientFill (ig);
@@ -462,7 +583,10 @@ namespace OctoSnail
                     g.strokePath (sp, stroke (1.1f));
                 }
                 else
-                    g.fillEllipse (juce::Rectangle<float> (ir * 1.35f, ir * 1.35f).withCentre (ic));
+                {
+                    const float pd = ir * juce::jlimit (0.5f, 1.75f, 0.75f + 1.0f * an.pupil);
+                    g.fillEllipse (juce::Rectangle<float> (pd, pd).withCentre (ic));
+                }
                 g.setColour (juce::Colours::white);
                 g.fillEllipse (juce::Rectangle<float> (ir * 0.42f, ir * 0.42f).withCentre (ic.translated (-ir * 0.3f, -ir * 0.35f)));
                 g.setColour (juce::Colours::white.withAlpha (0.6f));
@@ -472,9 +596,11 @@ namespace OctoSnail
                 juce::Path lid;
                 // corde à -0.22 r (paupières à moitié fermées), inclinée
                 const auto rot = juce::AffineTransform::rotation (lidAngle, c.x, c.y);
-                const auto l0 = c.translated (-rr * 1.3f, -rr * 0.22f).transformedBy (rot);
-                const auto l1 = c.translated ( rr * 1.3f, -rr * 0.22f).transformedBy (rot);
-                const auto mid = c.translated (0.0f, -rr * 0.22f).transformedBy (rot);
+                const float closeK = juce::jmax (an.blink, an.sleep);
+                const float ly = -rr * 0.22f + closeK * rr * 1.45f;
+                const auto l0 = c.translated (-rr * 1.3f, ly).transformedBy (rot);
+                const auto l1 = c.translated ( rr * 1.3f, ly).transformedBy (rot);
+                const auto mid = c.translated (0.0f, ly).transformedBy (rot);
                 lid.startNewSubPath (l0);
                 lid.quadraticTo (mid.translated (0.0f, rr * 0.18f), l1);
                 lid.lineTo (c.translated (rr * 1.6f, -rr * 1.8f).transformedBy (rot));
@@ -501,46 +627,10 @@ namespace OctoSnail
             g.setColour (kInk);     g.strokePath (brow, stroke (5.2f));
             g.setColour (kSkinLo);  g.strokePath (brow, stroke (2.6f));
         };
-        eye (eL.x, eL.y, 15.0f * ek,  0.32f,  0.22f,  0.20f, 7);    // gauche : regard en coin, mauvais
-        eye (eR.x, eR.y, 12.5f * ek, -0.28f, -0.28f,  0.28f, 13);   // droit : tombant, qui louche
+        eye (tipL.x, tipL.y, 15.0f * ek,  0.32f,  0.22f,  0.20f, 7);    // gauche : regard en coin, mauvais
+        eye (tipR.x, tipR.y, 12.5f * ek, -0.28f, -0.28f,  0.28f, 13);   // droit : tombant, qui louche
 
-        //======================================================================
-        // Bouche : rictus en coin, dents cassées, bave d'acide
         {
-            juce::Path mouth;
-            mouth.startNewSubPath (P (194, 104));
-            mouth.cubicTo (P (202, 99), P (214, 98), P (226, 92));     // lèvre sup (coin relevé à droite)
-            mouth.cubicTo (P (226, 104), P (218, 116), P (206, 117));  // lèvre inf
-            mouth.cubicTo (P (199, 117), P (195, 111), P (194, 104));
-            mouth.closeSubPath();
-            g.setColour (juce::Colour (0xff2a0808));
-            g.fillPath (mouth);
-            {
-                juce::Graphics::ScopedSaveState ss (g);
-                g.reduceClipRegion (mouth);
-                g.setColour (juce::Colour (0xff8a1e2a));      // langue
-                g.fillEllipse (R (208, 116, 22, 10));
-                // dents du haut, de travers, une manquante
-                const float tx[] = { 198, 204, 210, 222 };
-                const float th[] = { 6, 8, 5, 7 };
-                for (int i = 0; i < 4; ++i)
-                {
-                    juce::Path t;
-                    const float y0 = 100.0f - (tx[i] - 194) * 0.22f;
-                    t.addTriangle (P (tx[i] - 2.8f, y0 - 2), P (tx[i] + 2.8f, y0 - 2.5f), P (tx[i] + 0.5f, y0 + th[i]));
-                    g.setColour (juce::Colour (0xffe9dca2)); g.fillPath (t);
-                    g.setColour (kInk); g.strokePath (t, stroke (0.8f));
-                }
-                juce::Path t2; t2.addTriangle (P (212, 118), P (217, 117), P (215, 110));
-                g.setColour (juce::Colour (0xffd8c88a)); g.fillPath (t2);
-                g.setColour (kInk); g.strokePath (t2, stroke (0.8f));
-            }
-            g.setColour (kInk);
-            g.strokePath (mouth, stroke (2.6f));
-            // ride de rictus
-            juce::Path sneer; sneer.startNewSubPath (P (222, 84)); sneer.quadraticTo (P (229, 88), P (228, 96));
-            g.strokePath (sneer, stroke (1.6f));
-
             // bave d'acide qui pend
             juce::Path drool;
             drool.startNewSubPath (P (201, 114));
@@ -549,19 +639,28 @@ namespace OctoSnail
             drool.cubicTo (P (206, 148), P (207, 141), P (203, 138));
             drool.cubicTo (P (203, 131), P (204, 123), P (205.5f, 115));
             drool.closeSubPath();
+            drool.applyTransform (juce::AffineTransform::scale (1.0f, juce::jlimit (0.4f, 2.2f, an.drool), P (201, 114).x, P (201, 114).y));
+            const float dropY = 114.0f + (142.5f - 114.0f) * juce::jlimit (0.4f, 2.2f, an.drool);
             g.setColour (kAcid.withAlpha (0.3f)); g.strokePath (drool, stroke (4.0f));
             g.setColour (kInk); g.strokePath (drool, stroke (1.6f));
             g.setGradientFill (juce::ColourGradient (kAcidHi.withAlpha (0.95f), P (200, 115), kAcid, P (202, 146), false));
             g.fillPath (drool);
             g.setColour (juce::Colours::white.withAlpha (0.9f));
-            g.fillEllipse (R (199.8f, 142.5f, 1.6f, 2.6f));
+            g.fillEllipse (R (199.8f, dropY, 1.6f, 2.6f));
         }
-
-        // Rides du front (froncé)
-        for (int i = 0; i < 3; ++i)
+        //======================================================================
+        // Endormi : Zzz qui montent
+        if (an.sleep > 0.05f)
         {
-            juce::Path f; f.startNewSubPath (P (198 + i * 5.0f, 70 + i * 2.0f)); f.quadraticTo (P (204 + i * 5.0f, 66 + i * 2.0f), P (209 + i * 5.0f, 71 + i * 2.0f));
-            g.setColour (kInk.withAlpha (0.55f)); g.strokePath (f, stroke (1.2f));
+            for (int k = 0; k < 3; ++k)
+            {
+                const float ph = std::fmod (an.time * 0.35f + (float) k / 3.0f, 1.0f);
+                const auto pz = P (218.0f + ph * 16.0f + (float) k * 3.0f, 20.0f - ph * 30.0f);
+                g.setColour (juce::Colours::white.withAlpha (an.sleep * (1.0f - ph)));
+                g.setFont (juce::FontOptions ((10.0f + ph * 10.0f) * s * 1.6f, juce::Font::bold));
+                g.drawText ("Z", juce::Rectangle<float> (40.0f * s, 40.0f * s).withCentre (pz), juce::Justification::centred);
+            }
+        }
         }
     }
 }
