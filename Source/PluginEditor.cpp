@@ -10,6 +10,28 @@ namespace
             octoui::logoImage = juce::ImageCache::getFromMemory (BinaryData::logo_glitch_png, BinaryData::logo_glitch_pngSize);
         const char* name = OctoDecor::get().image;
         if (name == nullptr) { OctoDecor::bgImage = {}; OctoDecor::bgBlur = {}; OctoDecor::bgSoft = {}; return; }
+        if (juce::String (name) == "@custom")
+        {
+            // image choisie par l'utilisateur sur son ordinateur (jamais intégrée au plugin)
+            auto img = juce::ImageFileFormat::loadFrom (juce::File (OctoPrefs::getString ("customBg")));
+            if (! img.isValid()) { OctoDecor::bgImage = {}; OctoDecor::bgBlur = {}; OctoDecor::bgSoft = {}; return; }
+            img = img.convertedToFormat (juce::Image::RGB);
+            if (img.getWidth() > 2400)
+                img = img.rescaled (2400, juce::roundToInt (2400.0 * img.getHeight() / img.getWidth()), juce::Graphics::highResamplingQuality);
+            auto blurred = [&img] (int w, float radius)
+            {
+                auto small = img.rescaled (w, juce::roundToInt ((double) w * 620.0 / 1000.0), juce::Graphics::highResamplingQuality);
+                juce::ImageConvolutionKernel k (juce::roundToInt (radius) * 2 + 1);
+                k.createGaussianBlur (radius);
+                juce::Image out (juce::Image::RGB, small.getWidth(), small.getHeight(), false);
+                k.applyToImage (out, small, small.getBounds());
+                return out;
+            };
+            OctoDecor::bgImage = img;
+            OctoDecor::bgSoft = blurred (500, 4.5f);
+            OctoDecor::bgBlur = blurred (250, 7.0f);
+            return;
+        }
         int size = 0;
         if (auto* data = BinaryData::getNamedResource ((juce::String (name) + "_jpg").toRawUTF8(), size))
             OctoDecor::bgImage = juce::ImageCache::getFromMemory (data, size);
@@ -723,7 +745,10 @@ void OctoCidAudioProcessorEditor::showMenu()
     for (int i = 0; i < KnobStyles::chickenCount; ++i)
         knobs.addItem (601 + i, juce::String::fromUTF8 (KnobStyles::chickenNames[i]), true, i == OctoLook::knobOverride);
     for (int i = 0; i < OctoDecor::numDecors; ++i)
-        decor.addItem (700 + i, juce::String::fromUTF8 (OctoDecor::decors[i].name), true, i == OctoDecor::current);
+        decor.addItem (700 + i, juce::String::fromUTF8 (OctoDecor::decors[i].name), i != OctoDecor::customDecor || OctoPrefs::getString ("customBg").isNotEmpty(),
+                       i == OctoDecor::current);
+    decor.addSeparator();
+    decor.addItem (790, juce::String::fromUTF8 ("Choisir une image sur mon ordi…"));
     for (int i = 0; i < OctoSnail::numStyles; ++i)
         snail.addItem (800 + i, juce::String::fromUTF8 (OctoSnail::styles[i].name), true, i == OctoSnail::mascotStyle);
     juce::PopupMenu appearance;
@@ -756,6 +781,7 @@ void OctoCidAudioProcessorEditor::showMenu()
         else if (r >= 300 && r < 300 + OctoLook::numLooks) { OctoPrefs::setInt ("look", r - 300); applyAppearance(); }
         else if (r >= 600 && r <= 600 + KnobStyles::chickenCount) { OctoPrefs::setInt ("knob", r - 601); applyAppearance(); }
         else if (r >= 700 && r < 700 + OctoDecor::numDecors) { OctoPrefs::setInt ("decor", r - 700); applyAppearance(); }
+        else if (r == 790) chooseBackgroundImage();
         else if (r >= 800 && r < 800 + OctoSnail::numStyles) { OctoPrefs::setInt ("snail", r - 800); applyAppearance(); }
         else if (r == 899)
         {
@@ -776,6 +802,23 @@ void OctoCidAudioProcessorEditor::showMenu()
             OctoCidAudioProcessor::userPresetFolder().createDirectory();
             OctoCidAudioProcessor::userPresetFolder().startAsProcess();
         }
+    });
+}
+
+void OctoCidAudioProcessorEditor::chooseBackgroundImage()
+{
+    bgChooser = std::make_unique<juce::FileChooser> (juce::String::fromUTF8 ("Image de fond (elle reste sur ton ordinateur)"),
+                                                     juce::File (OctoPrefs::getString ("customBg")).getParentDirectory(),
+                                                     "*.jpg;*.jpeg;*.png;*.gif");
+    juce::Component::SafePointer<OctoCidAudioProcessorEditor> safe (this);
+    bgChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [safe] (const juce::FileChooser& fc)
+    {
+        if (safe == nullptr) return;
+        const auto f = fc.getResult();
+        if (! f.existsAsFile()) return;
+        OctoPrefs::setString ("customBg", f.getFullPathName());
+        OctoPrefs::setInt ("decor", OctoDecor::customDecor);
+        safe->applyAppearance();
     });
 }
 

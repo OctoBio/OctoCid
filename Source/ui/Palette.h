@@ -85,6 +85,19 @@ namespace OctoPrefs
         f.setValue (key, value);
         f.saveIfNeeded();
     }
+
+    inline juce::String getString (const juce::String& key)
+    {
+        juce::PropertiesFile f (options());
+        return f.getValue (key);
+    }
+
+    inline void setString (const juce::String& key, const juce::String& value)
+    {
+        juce::PropertiesFile f (options());
+        f.setValue (key, value);
+        f.saveIfNeeded();
+    }
 }
 
 //==============================================================================
@@ -298,7 +311,10 @@ namespace OctoDecor
         { "Portail feu",              2, 6, false, false, false, 0.66f, "portail_feu" },
         { "Portail bleu",             2, 6, false, false, false, 0.66f, "portail_bleu" },
         { "Portail vert, eclairs violets", 2, 6, false, false, false, 0.66f, "portail_vert_eclairs_violets" },
+        { "Cosmos",                   2, 6, false, false, false, 0.62f, "cosmos" },
+        { "Image perso (ton ordi)",   2, 6, false, false, false, 0.62f, "@custom" },   // préférence « customBg »
     };
+    inline constexpr int customDecor = 17;
     inline constexpr int numDecors = (int) (sizeof (decors) / sizeof (decors[0]));
     inline constexpr int defaultDecor = 11;
     inline int current = defaultDecor;

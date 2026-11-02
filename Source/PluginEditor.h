@@ -49,6 +49,8 @@ private:
     void applyAppearance();
     void rebuildPresetBox();
     void savePresetDialog();
+    void chooseBackgroundImage();
+    std::unique_ptr<juce::FileChooser> bgChooser;
     void toggleDrawer (int page);
 
     //==========================================================================

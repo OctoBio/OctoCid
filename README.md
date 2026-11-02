@@ -110,7 +110,7 @@ Menu « ... » > **Enregistrer le preset…** : le son actuel est sauvegardé da
 
 ## Apparence
 
-Menu « ... » > **Apparence** : 16 fonds (portails violet, vert, feu, bleu, orage, acide…), 16 styles d'interface
+Menu « ... » > **Apparence** : 17 fonds (portails violet, vert, feu, bleu, orage, acide, cosmos…) + **ta propre image** (*Fond > Choisir une image sur mon ordi…* : elle reste sur ton ordinateur, jamais intégrée au plugin), 16 styles d'interface
 (glitch, épurés, BD), 16 potards, 9 escargots. Choix gardé pour toutes les fenêtres ; « Revenir à l'apparence d'origine ».
 
 ## Presets d'usine

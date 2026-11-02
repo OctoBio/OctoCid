@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 1.5.0 LANGUAGES C CXX)
+project(OctoCid VERSION 1.5.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -84,6 +84,9 @@ target_compile_definitions(OctoCid PUBLIC
 )
 
 juce_add_binary_data(OctoCidAssets SOURCES
+    Assets/cosmos.jpg
+    Assets/cosmos_blur.jpg
+    Assets/cosmos_soft.jpg
     Assets/portail_violet.jpg
     Assets/portail_violet_blur.jpg
     Assets/portail_violet_soft.jpg
