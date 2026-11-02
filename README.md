@@ -9,9 +9,10 @@ Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid cla
 Fenêtre redimensionnable (tirer le coin en bas à droite, ou menu « ... » > Taille, de 60 à 200 %), taille gardée avec le projet :
 
 1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de l'escargot, qualité Normal / High, menu (presets, apparence, taille, patterns d'usine).
-2. **Drive** à gauche, **mascotte** au centre, **LFO** à droite.
+2. **Drive** à gauche, **mascotte** au centre, **3 LFO** à droite (onglets 1 / 2 / 3).
 3. **Panneau 303** (Tune, Cutoff, Resonance, Env Mod, Decay, Accent, Waveform, Volume) et le bouton du tiroir
-   **SLIME MODS**, qui se déplie au-dessus (réglages avancés + Punch / Delay / Reverb) sans masquer le séquenceur.
+   les boutons du tiroir **SLIME MODS** (réglages avancés + Punch / Delay / Reverb), **EFFETS** et **MOD**
+   (les 8 modulations), qui se déplie au-dessus sans masquer le séquenceur.
 4. **Séquenceur** sur toute la largeur.
 
 Potards : valeur affichée au survol et pendant le réglage, double-clic = valeur par défaut,
@@ -56,8 +57,16 @@ avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton 
 - **303** : Tune, Cutoff, Resonance, Env Mod, Decay, Accent, Waveform, Volume
 - **Drive** : Off / Overdrive / Distortion (modèle de circuit d'une pédale « rat »), Drive, Tone, Mix,
   Position *Après* le VCA (comme une pédale en sortie) ou *Avant* (le volume sculpte la disto : reste percutant)
-- **LFO** : libre ou synchronisé au tempo (1/1 à 1/32, pointé, triolet), Sine / Triangle / Square / S&H,
-  vers Cutoff, Resonance ou Pitch
+- **3 LFO assignables** à n'importe quel potard (36 destinations, y compris les effets et la vitesse des autres LFO) :
+  - 7 formes : Sinus, Triangle, Scie +, Scie -, Carré, S&H, Aléatoire lissé ;
+  - Vitesse libre (0,02 à 30 Hz) ou calée sur le tempo (4 mesures à 1/32, pointé, triolet) ;
+  - 5 modes : *Libre*, *Note* (repart à chaque note détachée, pas sur un slide), *Synchro* (calé sur la position
+    du DAW : identique à chaque lecture), *Un coup* (un seul cycle, comme une enveloppe), *Aléatoire* (phase au hasard) ;
+  - Phase de départ, Délai puis Fondu d'entrée, Lissage (sans saut quand le LFO repart), bipolaire / unipolaire.
+  - **Assigner** : attraper l'écran du LFO et le lâcher sur un potard, ou clic droit sur un potard > *Moduler par LFO*.
+    Un arc coloré montre la plage balayée, un point blanc suit la valeur réelle. **Alt + glisser** sur le potard
+    règle la quantité. La page **MOD** liste les 8 emplacements (source, destination, quantité, ×).
+  - Les presets faits avec l'ancien LFO sont convertis automatiquement.
 - **Punch + FX** : Punch (compresseur pensé pour l'acid : les accents claquent, la ligne devient dense),
   Attaque ; Delay ping-pong synchronisé (1/16 à 1/2, pointé, triolet) avec Feedback ; Reverb plate
   (Mix, Decay, Tone). Delay et reverb coupent le grave : la basse reste sèche et serrée
@@ -138,3 +147,4 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 5. Interface ✅ (fond portail, style glitch, potards néon)
 6. Escargot animé ✅
 7. Presets, banques de patterns, finitions ✅ (pluginval : voir ci-dessous)
+8. 3 LFO assignables + page MOD ✅ (v1.4.0)

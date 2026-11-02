@@ -849,8 +849,8 @@ void OctoCidAudioProcessor::publishModulationView() noexcept
     }
     for (int d = 0; d < ModParams::numDests; ++d)
         modOffsetView[(size_t) d].store (modOffset[(size_t) d], std::memory_order_relaxed);
-    // l'escargot fait onduler ses pédoncules avec les LFO utilisés (ou l'ancien LFO)
-    lfoView.store (n > 0 ? snail / (float) n : voice.getLfoValue(), std::memory_order_relaxed);
+    // l'escargot fait onduler ses pédoncules avec les LFO utilisés
+    lfoView.store (n > 0 ? snail / (float) n : 0.0f, std::memory_order_relaxed);
 }
 
 //==============================================================================

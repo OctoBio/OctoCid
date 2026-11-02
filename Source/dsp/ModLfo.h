@@ -25,7 +25,7 @@ namespace octocid
     {
         // Durée d'un cycle en noires (0 = libre)
         inline constexpr int count = 17;
-        inline const char* names[count] = { "Libre", "4 mes.", "2 mes.", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32",
+        inline const char* names[count] = { "Hz", "4 mes.", "2 mes.", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32",
                                             "1/2.", "1/4.", "1/8.", "1/16.", "1/2T", "1/4T", "1/8T", "1/16T" };
         inline constexpr double beats[count] = { 0.0, 16.0, 8.0, 4.0, 2.0, 1.0, 0.5, 0.25, 0.125,
                                                  3.0, 1.5, 0.75, 0.375, 4.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0 };
@@ -88,6 +88,7 @@ namespace octocid
 
             const double cyc = std::floor (p);
             const float x = (float) (p - cyc);                 // position dans le cycle 0..1
+            pos = x;
             if ((long long) cyc != lastCycle) { lastCycle = (long long) cyc; prevRand = curRand; curRand = nextRandom(); }
 
             float v;   // -1..1
@@ -124,14 +125,14 @@ namespace octocid
         }
 
         float value() const noexcept { return out; }
-        float cyclePosition() const noexcept { return (float) (phase - std::floor (phase)); }
+        float cyclePosition() const noexcept { return pos; }   // position affichée (phase comprise)
 
     private:
         float uniform() noexcept { rng = rng * 1664525u + 1013904223u; return (float) (rng >> 8) / 16777216.0f; }
         float nextRandom() noexcept { return 2.0f * uniform() - 1.0f; }
 
         double phase = 0.0, sinceNote = 1.0e9;
-        float out = 0.0f, prevRand = 0.0f, curRand = 0.0f;
+        float out = 0.0f, pos = 0.0f, prevRand = 0.0f, curRand = 0.0f;
         long long lastCycle = 0;
         uint32_t rng = 1;
         bool held = false;

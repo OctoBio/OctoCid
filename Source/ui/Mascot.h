@@ -96,7 +96,7 @@ private:
 
         // Pédoncules : LFO (ondulent en sens opposés) + Tune (penchent)
         const float lfo = sources.lfo != nullptr ? sources.lfo->load() : 0.0f;
-        const float depth = norm (sources.lfoDepth, 0.0f);
+        const float depth = norm (sources.lfoDepth, 0.6f);   // sans potard Depth (3 LFO) : amplitude fixe
         const float tuneTilt = (norm (sources.tune, 0.5f) - 0.5f) * 0.6f;
         smooth (anim.stalkL, tuneTilt + lfo * depth * 0.30f, 0.05f);
         smooth (anim.stalkR, tuneTilt - lfo * depth * 0.30f, 0.05f);

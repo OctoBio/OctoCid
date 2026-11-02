@@ -153,25 +153,70 @@ namespace octoui
         {
             setRotaryParameters (juce::MathConstants<float>::pi * 1.2f, juce::MathConstants<float>::pi * 2.8f, true);
             setMouseDragSensitivity (220);
+            setPopupMenuEnabled (false);
         }
-        void mouseDown (const juce::MouseEvent& e) override { updateSensitivity (e); juce::Slider::mouseDown (e); }
-        void mouseDrag (const juce::MouseEvent& e) override { updateSensitivity (e); juce::Slider::mouseDrag (e); }
+        std::function<void (const juce::MouseEvent&)> onPopup;   // clic droit
+        std::function<void (float)> onAltDrag;                    // Alt + glisser : quantité de modulation (en %)
+
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            altMode = false;
+            if (e.mods.isPopupMenu()) { if (onPopup) onPopup (e); return; }
+            if (e.mods.isAltDown() && onAltDrag) { altMode = true; altY = e.position.y; return; }
+            updateSensitivity (e); juce::Slider::mouseDown (e);
+        }
+        void mouseDrag (const juce::MouseEvent& e) override
+        {
+            if (e.mods.isPopupMenu()) return;
+            if (altMode) { onAltDrag ((altY - e.position.y) * (e.mods.isCtrlDown() ? 0.05f : 0.5f)); altY = e.position.y; return; }
+            updateSensitivity (e); juce::Slider::mouseDrag (e);
+        }
+        void mouseUp (const juce::MouseEvent& e) override
+        {
+            if (altMode || e.mods.isPopupMenu()) { altMode = false; return; }
+            juce::Slider::mouseUp (e);
+        }
 
     private:
         void updateSensitivity (const juce::MouseEvent& e)
         {
             setMouseDragSensitivity (e.mods.isCommandDown() || e.mods.isCtrlDown() ? 1400 : 220);
         }
+        bool altMode = false;
+        float altY = 0.0f;
+    };
+
+    //==========================================================================
+    // Hôte de modulation (l'éditeur) : les potards lui demandent leurs modulations
+    //==========================================================================
+    class ModHost
+    {
+    public:
+        virtual ~ModHost() = default;
+        struct Mod { int slot = 0, lfo = 0; float amount = 0.0f; bool bipolar = true; };   // amount : -1..1 (part de la course du potard)
+        virtual int modDestFor (const juce::String& paramId) = 0;      // 0 : pas modulable
+        virtual void modsFor (int dest, juce::Array<Mod>& out) = 0;
+        virtual float modOffsetNow (int dest) = 0;                     // décalage actuel (-1..1)
+        virtual void modAssign (int lfo, int dest) = 0;
+        virtual void modRemove (int dest) = 0;
+        virtual void modSetAmount (int slot, float percent) = 0;
+        virtual void modNudge (int dest, float deltaPercent) = 0;
+
+        static juce::Colour lfoColour (int lfo)
+        {
+            static const juce::Colour c[3] = { juce::Colour (0xff8ef01e), juce::Colour (0xff00e8ff), juce::Colour (0xffff2ac8) };
+            return c[juce::jlimit (0, 2, lfo)];
+        }
     };
 
     //==========================================================================
     // Potard étiqueté : affiche son nom, et sa valeur au survol / pendant le réglage
     //==========================================================================
-    class Knob : public juce::Component, private juce::Slider::Listener
+    class Knob : public juce::Component, public juce::DragAndDropTarget, private juce::Slider::Listener
     {
     public:
         Knob (juce::AudioProcessorValueTreeState& state, const juce::ParameterID& id, const juce::String& name, bool bipolar = false)
-            : title (name)
+            : title (name), paramId (id.getParamID())
         {
             slider.getProperties().set ("bipolar", bipolar);
             slider.addListener (this);
@@ -182,13 +227,16 @@ namespace octoui
             if (param != nullptr)
             {
                 slider.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
-                slider.setTooltip (name + " — double-clic : valeur par défaut, Ctrl + glisser : réglage fin");
+                slider.setTooltip (name + juce::String::fromUTF8 (" — double-clic : valeur par défaut, Ctrl + glisser : réglage fin, clic droit : modulation"));
             }
+            slider.onPopup = [this] (const juce::MouseEvent&) { showModMenu(); };
+            slider.onAltDrag = [this] (float d) { if (auto* h = host()) if (dest() > 0) { h->modNudge (dest(), d); repaint(); } };
         }
 
         ~Knob() override { slider.removeListener (this); }
 
         juce::Slider& getSlider() noexcept { return slider; }
+        const juce::String& getParamId() const noexcept { return paramId; }
 
         void resized() override
         {
@@ -215,15 +263,130 @@ namespace octoui
             g.drawFittedText (text, r, juce::Justification::centred, 1, 0.8f);
         }
 
+        // Modulation : un arc par LFO (plage balayée) et un point qui suit la valeur modulée
+        void paintOverChildren (juce::Graphics& g) override
+        {
+            if (dropHover)
+            {
+                g.setColour (OctoColours::slime.withAlpha (0.35f));
+                g.fillEllipse (slider.getBounds().toFloat().reduced (2.0f));
+            }
+            auto* h = host();
+            if (h == nullptr || dest() <= 0 || param == nullptr) return;
+            juce::Array<ModHost::Mod> mods;
+            h->modsFor (dest(), mods);
+            if (mods.isEmpty()) return;
+            const auto rp = slider.getRotaryParameters();
+            const auto b = slider.getBounds().toFloat().reduced (2.0f);
+            const auto c = b.getCentre();
+            const float base = param->getValue();
+            auto angle = [&] (float v) { return rp.startAngleRadians + juce::jlimit (0.0f, 1.0f, v) * (rp.endAngleRadians - rp.startAngleRadians); };
+            float rad = b.getWidth() * 0.5f - 1.0f;
+            for (auto& m : mods)
+            {
+                const float a0 = angle (m.bipolar ? base - m.amount : base), a1 = angle (base + m.amount);
+                if (std::abs (a1 - a0) > 0.001f)
+                {
+                    juce::Path arc;
+                    arc.addCentredArc (c.x, c.y, rad, rad, 0.0f, std::min (a0, a1), std::max (a0, a1), true);
+                    g.setColour (ModHost::lfoColour (m.lfo).withAlpha (0.9f));
+                    g.strokePath (arc, juce::PathStrokeType (2.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+                }
+                rad -= 3.5f;
+            }
+            const float now = angle (base + h->modOffsetNow (dest()));
+            const auto pt = c.getPointOnCircumference (b.getWidth() * 0.5f - 1.0f, now);
+            g.setColour (juce::Colours::white);
+            g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre (pt));
+            g.setColour (ModHost::lfoColour (mods.getFirst().lfo));
+            g.drawEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre (pt), 1.5f);
+        }
+
+        // appelé par l'éditeur ~30 fois par seconde : ne redessine que s'il y a une modulation
+        void modulationTick()
+        {
+            if (auto* h = host())
+                if (dest() > 0)
+                {
+                    juce::Array<ModHost::Mod> mods;
+                    h->modsFor (dest(), mods);
+                    if (! mods.isEmpty() || wasModulated) repaint();
+                    wasModulated = ! mods.isEmpty();
+                }
+        }
+
+        // Glisser-déposer d'un LFO
+        bool isInterestedInDragSource (const SourceDetails& d) override
+        { return d.description.toString().startsWith ("octolfo:") && dest() > 0; }
+        void itemDragEnter (const SourceDetails&) override { dropHover = true; repaint(); }
+        void itemDragExit (const SourceDetails&) override { dropHover = false; repaint(); }
+        void itemDropped (const SourceDetails& d) override
+        {
+            dropHover = false;
+            if (auto* h = host())
+                h->modAssign (d.description.toString().fromFirstOccurrenceOf (":", false, false).getIntValue(), dest());
+            repaint();
+        }
+
         void mouseEnter (const juce::MouseEvent&) override { repaint(); }
         void mouseExit (const juce::MouseEvent&) override { repaint(); }
         void mouseUp (const juce::MouseEvent&) override { repaint(); }
 
     private:
+        ModHost* host() const
+        {
+            for (auto* c = getParentComponent(); c != nullptr; c = c->getParentComponent())
+                if (auto* h = dynamic_cast<ModHost*> (c)) return h;
+            return nullptr;
+        }
+        int dest()
+        {
+            if (destIndex < 0) { auto* h = host(); if (h == nullptr) return 0; destIndex = h->modDestFor (paramId); }
+            return destIndex;
+        }
+        void showModMenu()
+        {
+            auto* h = host();
+            if (h == nullptr || dest() <= 0) return;
+            juce::Array<ModHost::Mod> mods;
+            h->modsFor (dest(), mods);
+            juce::PopupMenu m;
+            m.addSectionHeader (title + juce::String::fromUTF8 (" — modulation"));
+            for (int i = 0; i < 3; ++i)
+            {
+                bool has = false;
+                for (auto& md : mods) has = has || md.lfo == i;
+                m.addColouredItem (1 + i, "Moduler par LFO " + juce::String (i + 1), ModHost::lfoColour (i), true, has);
+            }
+            for (auto& md : mods)
+            {
+                juce::PopupMenu amt;
+                for (int v : { 100, 50, 25, 10, 5, -5, -10, -25, -50, -100 })
+                    amt.addItem (100 + md.slot * 64 + (v + 100) / 5, (v > 0 ? "+" : "") + juce::String (v) + " %", true,
+                                 std::abs (md.amount * 100.0f - (float) v) < 0.5f);
+                m.addSubMenu (juce::String::fromUTF8 ("Quantité LFO ") + juce::String (md.lfo + 1) + " (" + juce::String (md.amount * 100.0f, 1) + " %)", amt);
+            }
+            if (! mods.isEmpty()) m.addItem (99, "Retirer la modulation");
+            m.addSeparator();
+            m.addItem (98, juce::String::fromUTF8 ("Astuce : glisser un LFO sur le potard, Alt + glisser règle la quantité"), false);
+            juce::Component::SafePointer<Knob> safe (this);
+            m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&slider), [safe] (int r)
+            {
+                if (safe == nullptr || r <= 0) return;
+                auto* hh = safe->host();
+                if (hh == nullptr) return;
+                if (r >= 1 && r <= 3) hh->modAssign (r - 1, safe->dest());
+                else if (r == 99) hh->modRemove (safe->dest());
+                else if (r >= 100) { const int slot = (r - 100) / 64, step = (r - 100) % 64; hh->modSetAmount (slot, (float) (step * 5 - 100)); }
+                safe->repaint();
+            });
+        }
         void sliderValueChanged (juce::Slider*) override { repaint(); }
 
         FineSlider slider;
-        juce::String title;
+        juce::String title, paramId;
+        int destIndex = -1;
+        bool dropHover = false, wasModulated = false;
         juce::RangedAudioParameter* param = nullptr;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
     };

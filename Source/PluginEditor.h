@@ -6,6 +6,7 @@
 #include "ui/Widgets.h"
 #include "ui/Mascot.h"
 #include "ui/SequencerView.h"
+#include "ui/LfoPanel.h"
 
 //==============================================================================
 // Interface OctoCid (étape 5).
@@ -18,6 +19,8 @@
 // Taille de base 1000 x 620, tout est dessiné en vectoriel.
 //==============================================================================
 class OctoCidAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                    public juce::DragAndDropContainer,
+                                    public octoui::ModHost,
                                     private juce::Timer
 {
 public:
@@ -28,6 +31,15 @@ public:
     void resized() override;
 
     static constexpr int kWidth = 1000, kHeight = 620;
+
+    // ModHost : modulations LFO -> potards (slots m1..m8)
+    int modDestFor (const juce::String& paramId) override { return ModParams::destIndex (paramId); }
+    void modsFor (int dest, juce::Array<Mod>& out) override;
+    float modOffsetNow (int dest) override;
+    void modAssign (int lfo, int dest) override;
+    void modRemove (int dest) override;
+    void modSetAmount (int slot, float percent) override;
+    void modNudge (int dest, float deltaPercent) override;
 
 private:
     void timerCallback() override;
@@ -59,8 +71,8 @@ private:
         void setPage (int newPage);
         int getPage() const noexcept { return page; }
     private:
-        int page = 0;   // 0 : SLIME MODS + PUNCH/FX, 1 : EFFETS
-        std::vector<std::unique_ptr<juce::Component>> slimeItems, fxItems;
+        int page = 0;   // 0 : SLIME MODS + PUNCH/FX, 1 : EFFETS, 2 : MOD
+        std::vector<std::unique_ptr<juce::Component>> slimeItems, fxItems, modItems;
         std::vector<std::unique_ptr<juce::Component>> hitItems, jetItems, pumpItems, stereoItems;
         std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;
         juce::Component* addCombo (OctoCidAudioProcessor&, const juce::ParameterID&, const juce::String& name,
@@ -80,10 +92,11 @@ private:
     std::unique_ptr<octoui::Segmented> quality;
 
     // Drive / LFO
-    std::unique_ptr<octoui::Segmented> driveType, drivePos, lfoShape, lfoDest;
-    std::unique_ptr<octoui::Knob> drive, driveTone, driveMix, lfoRate, lfoDepth;
-    juce::ComboBox lfoSync;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> lfoSyncAttachment;
+    std::unique_ptr<octoui::Segmented> driveType, drivePos;
+    std::unique_ptr<octoui::Knob> drive, driveTone, driveMix;
+    std::unique_ptr<LfoPanel> lfos;
+    void setSlot (int slot, int src, int dst, float amountPercent);
+    juce::Array<octoui::Knob*> allKnobs;
 
     // Mascotte
     MascotView mascot;
@@ -91,7 +104,7 @@ private:
     // Panneau 303
     std::unique_ptr<octoui::Knob> tune, cutoff, resonance, envMod, decay, accent, volume;
     std::unique_ptr<octoui::Segmented> waveform;
-    juce::TextButton drawerButton { "SLIME MODS" }, effectsButton { "EFFETS" };
+    juce::TextButton drawerButton { "SLIME MODS" }, effectsButton { "EFFETS" }, modButton { "MOD" };
 
     // Tiroir et séquenceur
     Drawer drawer;

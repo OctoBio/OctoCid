@@ -43,6 +43,112 @@ namespace
         juce::String name;
     };
 
+    // Quantité de modulation : barre bipolaire -100..+100 % (glisser, double-clic : 0)
+    class AmountBar : public juce::Component, public juce::SettableTooltipClient
+    {
+    public:
+        AmountBar (juce::RangedAudioParameter& p, std::function<juce::Colour()> colourFn)
+            : param (p), colour (std::move (colourFn)), attachment (p, [this] (float) { repaint(); })
+        {
+            attachment.sendInitialUpdate();
+            setTooltip (juce::String::fromUTF8 ("Quantité (glisser ; Ctrl : fin ; double-clic : 0)"));
+        }
+        void paint (juce::Graphics& g) override
+        {
+            auto r = getLocalBounds().toFloat().reduced (1.0f, 4.0f);
+            g.setColour (juce::Colour (0xff141216).withAlpha (0.8f));
+            g.fillRect (r);
+            const float v = param.convertFrom0to1 (param.getValue());       // -100..100
+            const float cx = r.getCentreX(), half = r.getWidth() * 0.5f;
+            const auto col = colour();
+            g.setColour (col.withAlpha (0.85f));
+            const float x1 = cx + half * v * 0.01f;
+            g.fillRect (juce::Rectangle<float>::leftTopRightBottom (std::min (cx, x1), r.getY() + 2.0f, std::max (cx, x1), r.getBottom() - 2.0f));
+            g.setColour (OctoColours::cream.withAlpha (0.35f));
+            g.drawVerticalLine ((int) cx, r.getY(), r.getBottom());
+            g.setColour (col.withAlpha (0.6f));
+            g.drawRect (r, 1.0f);
+            g.setFont (OctoLook::monoFont (11.0f));
+            const auto txt = (v > 0.05f ? "+" : "") + juce::String (v, 1) + " %";
+            g.setColour (juce::Colours::black.withAlpha (0.8f));
+            g.drawText (txt, r.translated (1.0f, 1.0f), juce::Justification::centred);
+            g.setColour (std::abs (v) < 0.05f ? juce::Colours::white.withAlpha (0.4f) : juce::Colours::white);
+            g.drawText (txt, r, juce::Justification::centred);
+        }
+        void mouseDown (const juce::MouseEvent&) override { start = param.getValue(); attachment.beginGesture(); }
+        void mouseDrag (const juce::MouseEvent& e) override
+        {
+            const float range = (e.mods.isCtrlDown() || e.mods.isCommandDown() ? 6.0f : 1.0f) * (float) getWidth();
+            const float d = (float) (e.getDistanceFromDragStartX() - e.getDistanceFromDragStartY()) / range;
+            attachment.setValueAsPartOfGesture (param.convertFrom0to1 (juce::jlimit (0.0f, 1.0f, start + d)));
+        }
+        void mouseUp (const juce::MouseEvent&) override { attachment.endGesture(); }
+        void mouseDoubleClick (const juce::MouseEvent&) override { attachment.setValueAsCompleteGesture (0.0f); }
+    private:
+        juce::RangedAudioParameter& param;
+        std::function<juce::Colour()> colour;
+        juce::ParameterAttachment attachment;
+        float start = 0.5f;
+    };
+
+    // Une ligne de la page MOD : source, destination, quantité, effacer
+    class SlotRow : public juce::Component
+    {
+    public:
+        SlotRow (juce::AudioProcessorValueTreeState& st, int slotIndex) : state (st), slot (slotIndex)
+        {
+            src.addItemList (ModParams::sourceNames, 1);
+            dst.addItemList (ModParams::destNames(), 1);
+            src.setTooltip ("Source");
+            dst.setTooltip (juce::String::fromUTF8 ("Paramètre modulé"));
+            srcAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (st, ModParams::slotId (slot, "src"), src);
+            dstAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (st, ModParams::slotId (slot, "dst"), dst);
+            auto* amtParam = dynamic_cast<juce::RangedAudioParameter*> (st.getParameter (ModParams::slotId (slot, "amt")));
+            amount = std::make_unique<AmountBar> (*amtParam, [this]
+            {
+                const int s = src.getSelectedId() - 2;
+                return s >= 0 ? octoui::ModHost::lfoColour (s) : OctoColours::dim;
+            });
+            src.onChange = [this] { amount->repaint(); repaint(); };
+            clear.setButtonText (juce::String::fromUTF8 ("×"));
+            clear.setTooltip ("Effacer cette modulation");
+            clear.onClick = [this]
+            {
+                for (const char* w : { "src", "dst", "amt" })
+                    if (auto* p = state.getParameter (ModParams::slotId (slot, w)))
+                    {
+                        p->beginChangeGesture();
+                        p->setValueNotifyingHost (w[0] == 'a' ? p->convertTo0to1 (0.0f) : 0.0f);
+                        p->endChangeGesture();
+                    }
+            };
+            for (auto* c : std::initializer_list<juce::Component*> { &src, &dst, amount.get(), &clear }) addAndMakeVisible (*c);
+        }
+        void resized() override
+        {
+            auto r = getLocalBounds().reduced (0, 2);
+            r.removeFromLeft (20);
+            src.setBounds (r.removeFromLeft (78)); r.removeFromLeft (4);
+            clear.setBounds (r.removeFromRight (24)); r.removeFromRight (4);
+            dst.setBounds (r.removeFromLeft (r.getWidth() * 55 / 100)); r.removeFromLeft (4);
+            amount->setBounds (r);
+        }
+        void paint (juce::Graphics& g) override
+        {
+            const int s = src.getSelectedId() - 2;
+            g.setColour (s >= 0 ? octoui::ModHost::lfoColour (s) : OctoColours::cream.withAlpha (0.5f));
+            g.setFont (OctoLook::monoFont (12.0f));
+            g.drawText (juce::String (slot + 1), getLocalBounds().removeFromLeft (18), juce::Justification::centred);
+        }
+    private:
+        juce::AudioProcessorValueTreeState& state;
+        int slot;
+        juce::ComboBox src, dst;
+        juce::TextButton clear;
+        std::unique_ptr<AmountBar> amount;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> srcAtt, dstAtt;
+    };
+
     void layoutGrid (juce::Rectangle<int> area, std::vector<std::unique_ptr<juce::Component>>& items, int perRow)
     {
         const int rows = ((int) items.size() + perRow - 1) / perRow;
@@ -99,6 +205,13 @@ OctoCidAudioProcessorEditor::Drawer::Drawer (OctoCidAudioProcessor& p)
     knob (ParamIDs::pump, "Pump", pumpItems);
     addCombo (p, pumpRate, "Rythme", pumpItems);
     knob (ParamIDs::width, "Width", stereoItems);
+
+    // Page MOD : les 8 emplacements de modulation
+    for (int i = 0; i < ModParams::numSlots; ++i)
+    {
+        modItems.push_back (std::make_unique<SlotRow> (p.apvts, i));
+        addAndMakeVisible (*modItems.back());
+    }
     setPage (0);
 }
 
@@ -109,6 +222,7 @@ void OctoCidAudioProcessorEditor::Drawer::setPage (int newPage)
     for (auto& c : fxItems)    c->setVisible (page == 0);
     for (auto* v : { &hitItems, &jetItems, &pumpItems, &stereoItems })
         for (auto& c : *v) c->setVisible (page == 1);
+    for (auto& c : modItems) c->setVisible (page == 2);
     resized();
     repaint();
 }
@@ -146,6 +260,15 @@ void OctoCidAudioProcessorEditor::Drawer::paint (juce::Graphics& g)
     auto r = getLocalBounds().toFloat().reduced (1.0f);
     const float split = r.getWidth() * 0.63f;
     const auto org = getPosition().toFloat();
+    if (page == 2)
+    {
+        octoui::drawPanel (g, r, "MODULATIONS", true, org);
+        g.setColour (OctoColours::cream.withAlpha (0.6f));
+        g.setFont (OctoLook::monoFont (10.5f));
+        g.drawText (juce::String::fromUTF8 ("glisser l'écran d'un LFO sur un potard  |  clic droit sur un potard  |  Alt + glisser : quantité"),
+                    r.withTrimmedTop (4.0f).withHeight (14.0f).withTrimmedRight (14.0f), juce::Justification::centredRight);
+        return;
+    }
     if (page == 1)
     {
         const char* titles[] = { "FRAPPE", "JET", "PUMP", "STEREO" };
@@ -173,6 +296,12 @@ void OctoCidAudioProcessorEditor::Drawer::resized()
         auto area = effectPanel (rf, i).toNearestInt().reduced (6, 0).withTrimmedTop (26).withTrimmedBottom (8);
         layoutGrid (area, *groups[i], (int) groups[i]->size());
     }
+
+    // MOD : 2 colonnes de 4 lignes
+    auto m = getLocalBounds().reduced (14, 0).withTrimmedTop (24).withTrimmedBottom (8);
+    const int colW = (m.getWidth() - 24) / 2, rowH = m.getHeight() / 4;
+    for (size_t i = 0; i < modItems.size(); ++i)
+        modItems[i]->setBounds (m.getX() + (int) (i / 4) * (colW + 24), m.getY() + (int) (i % 4) * rowH, colW, rowH);
 }
 
 //==============================================================================
@@ -272,16 +401,9 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     for (auto* c : std::initializer_list<juce::Component*> { driveType.get(), drivePos.get(), drive.get(), driveTone.get(), driveMix.get() })
         add (*c);
 
-    // --- LFO
-    lfoSync.addItemList (LfoSync::names, 1);
-    lfoSync.setTooltip ("Libre (Rate en Hz) ou cale sur le tempo");
-    lfoSyncAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (st, ParamIDs::lfoSync.getParamID(), lfoSync);
-    lfoShape = std::make_unique<octoui::Segmented> (st, ParamIDs::lfoShape, juce::StringArray { "Sin", "Tri", "Sqr", "S&H" });
-    lfoDest  = std::make_unique<octoui::Segmented> (st, ParamIDs::lfoDest, juce::StringArray { "Cutoff", "Reso", "Pitch" });
-    lfoRate  = std::make_unique<octoui::Knob> (st, ParamIDs::lfoRate, "Rate");
-    lfoDepth = std::make_unique<octoui::Knob> (st, ParamIDs::lfoDepth, "Depth");
-    for (auto* c : std::initializer_list<juce::Component*> { &lfoSync, lfoShape.get(), lfoDest.get(), lfoRate.get(), lfoDepth.get() })
-        add (*c);
+    // --- 3 LFO assignables (onglets)
+    lfos = std::make_unique<LfoPanel> (st, processor.lfoValueView, processor.lfoPhaseView);
+    add (*lfos);
 
     add (mascot);
     {
@@ -289,7 +411,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
         auto P = [&st] (const juce::ParameterID& id) { return dynamic_cast<juce::RangedAudioParameter*> (st.getParameter (id.getParamID())); };
         src.cutoff = P (ParamIDs::cutoff); src.resonance = P (ParamIDs::resonance); src.envmod = P (ParamIDs::envMod);
         src.decay = P (ParamIDs::decay); src.drive = P (ParamIDs::driveAmt); src.driveType = P (ParamIDs::driveType);
-        src.tune = P (ParamIDs::tune); src.lfoDepth = P (ParamIDs::lfoDepth); src.anim = P (ParamIDs::snailAnim);
+        src.tune = P (ParamIDs::tune); src.anim = P (ParamIDs::snailAnim);
         src.noteCount = &processor.noteCount; src.lastAccent = &processor.lastAccent; src.lastSlide = &processor.lastSlide;
         src.lastNote = &processor.lastNote; src.lfo = &processor.lfoView;
         mascot.setSources (src);
@@ -310,14 +432,28 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     effectsButton.onClick = [this] { toggleDrawer (1); };
     effectsButton.setComponentID ("effectsButton");
     effectsButton.setTooltip ("Effets : Impact, Smash, Jet (flanger / phaser), Pump, Width");
+    modButton.onClick = [this] { toggleDrawer (2); };
+    modButton.setComponentID ("modButton");
+    modButton.setTooltip (juce::String::fromUTF8 ("Les 8 modulations LFO -> potards (source, destination, quantité)"));
     drawerButton.setTooltip ("Ouvre / ferme le tiroir des reglages avances et des effets");
     for (auto* c : std::initializer_list<juce::Component*> { tune.get(), cutoff.get(), resonance.get(), envMod.get(), decay.get(),
-                                                             accent.get(), waveform.get(), volume.get(), &drawerButton, &effectsButton })
+                                                             accent.get(), waveform.get(), volume.get(), &drawerButton, &effectsButton, &modButton })
         add (*c);
 
     // --- Séquenceur, puis tiroir par-dessus la zone haute
     add (sequencer);
     content.addChildComponent (drawer);
+
+    // tous les potards (rafraîchis par le timer quand ils sont modulés)
+    std::function<void (juce::Component&)> collect = [&] (juce::Component& c)
+    {
+        for (auto* ch : c.getChildren())
+        {
+            if (auto* k = dynamic_cast<octoui::Knob*> (ch)) allKnobs.add (k);
+            collect (*ch);
+        }
+    };
+    collect (content);
 
     refreshPresetBox();
     content.sendLookAndFeelChange();      // toutes les zones de texte relisent la palette
@@ -374,11 +510,7 @@ void OctoCidAudioProcessorEditor::resized()
     mascot.setBounds (mascotArea.getX() - 10, topBar.getBottom(), mascotArea.getWidth() + 20, mascotArea.getBottom() + 4 - topBar.getBottom());
     mascot.setSnailArea (mascotArea.toFloat().translated ((float) -mascot.getX(), (float) -mascot.getY()));
 
-    lfoSync.setBounds (lfoPanel.getX() + 12, lfoPanel.getY() + 22, 92, 24);
-    lfoShape->setBounds (lfoPanel.getX() + 110, lfoPanel.getY() + 22, 150, 24);
-    lfoDest->setBounds (lfoPanel.getRight() - 12 - 108, lfoPanel.getY() + 52, 108, 24);
-    lfoRate->setBounds (lfoPanel.getX() + 40, dy, dk, dh);
-    lfoDepth->setBounds (lfoPanel.getX() + 40 + 112, dy, dk, dh);
+    lfos->setBounds (lfoPanel);
 
     // Panneau 303
     mainPanel = { 10, 214, 980, 124 };
@@ -392,8 +524,9 @@ void OctoCidAudioProcessorEditor::resized()
     waveform->setBounds (kx + 4, ky + 34, 116, 44);
     kx += 126;
     volume->setBounds (kx, ky, kw, kh);
-    drawerButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 24, 112, 32);
-    effectsButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 64, 112, 32);
+    drawerButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 14, 112, 28);
+    effectsButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 48, 112, 28);
+    modButton.setBounds (mainPanel.getRight() - 124, mainPanel.getY() + 82, 112, 28);
 
     // Séquenceur
     seqArea = { 10, 346, 980, 266 };
@@ -421,6 +554,7 @@ void OctoCidAudioProcessorEditor::toggleDrawer (int page)
     const bool open = drawerTarget > 0.5f;
     drawerButton.setButtonText (open && page == 0 ? "FERMER" : "SLIME MODS");
     effectsButton.setButtonText (open && page == 1 ? "FERMER" : "EFFETS");
+    modButton.setButtonText (open && page == 2 ? "FERMER" : "MOD");
 }
 
 void OctoCidAudioProcessorEditor::timerCallback()
@@ -447,6 +581,94 @@ void OctoCidAudioProcessorEditor::timerCallback()
 
     if (processor.getCurrentProgram() != displayedProgram)
         refreshPresetBox();
+
+    // LFO : écran animé et anneaux de modulation des potards
+    lfos->tick();
+    for (auto* k : allKnobs)
+        if (k->isShowing()) k->modulationTick();
+}
+
+//==============================================================================
+// Modulations : 8 emplacements (source LFO, destination, quantité en %)
+void OctoCidAudioProcessorEditor::modsFor (int dest, juce::Array<Mod>& out)
+{
+    auto& st = processor.apvts;
+    for (int k = 0; k < ModParams::numSlots; ++k)
+    {
+        const int src = (int) st.getRawParameterValue (ModParams::slotId (k, "src"))->load();
+        const int dst = (int) st.getRawParameterValue (ModParams::slotId (k, "dst"))->load();
+        if (src <= 0 || dst != dest) continue;
+        const float amt = st.getRawParameterValue (ModParams::slotId (k, "amt"))->load() * 0.01f;
+        const bool uni = st.getRawParameterValue (ModParams::lfoId (src - 1, "pol"))->load() > 0.5f;
+        out.add ({ k, src - 1, amt, ! uni });
+    }
+}
+
+float OctoCidAudioProcessorEditor::modOffsetNow (int dest)
+{
+    return dest > 0 && dest < ModParams::numDests ? processor.modOffsetView[(size_t) dest].load (std::memory_order_relaxed) : 0.0f;
+}
+
+void OctoCidAudioProcessorEditor::setSlot (int slot, int src, int dst, float amountPercent)
+{
+    auto set = [this, slot] (const char* what, float plain)
+    {
+        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.apvts.getParameter (ModParams::slotId (slot, what))))
+        {
+            p->beginChangeGesture();
+            p->setValueNotifyingHost (p->convertTo0to1 (plain));
+            p->endChangeGesture();
+        }
+    };
+    set ("src", (float) src);
+    set ("dst", (float) dst);
+    set ("amt", amountPercent);
+}
+
+void OctoCidAudioProcessorEditor::modAssign (int lfo, int dest)
+{
+    if (dest <= 0 || lfo < 0 || lfo >= ModParams::numLfos) return;
+    auto& st = processor.apvts;
+    int freeSlot = -1;
+    for (int k = 0; k < ModParams::numSlots; ++k)
+    {
+        const int src = (int) st.getRawParameterValue (ModParams::slotId (k, "src"))->load();
+        const int dst = (int) st.getRawParameterValue (ModParams::slotId (k, "dst"))->load();
+        if (src == lfo + 1 && dst == dest) return;                       // déjà relié
+        if (freeSlot < 0 && (src == 0 || dst == 0)) freeSlot = k;
+    }
+    if (freeSlot < 0)
+    {
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Modulations pleines",
+            juce::String::fromUTF8 ("Les 8 emplacements sont utilisés. Libère-en un dans la page MOD (bouton ×)."), "OK", this);
+        return;
+    }
+    setSlot (freeSlot, lfo + 1, dest, 30.0f);
+}
+
+void OctoCidAudioProcessorEditor::modRemove (int dest)
+{
+    for (int k = 0; k < ModParams::numSlots; ++k)
+        if ((int) processor.apvts.getRawParameterValue (ModParams::slotId (k, "dst"))->load() == dest)
+            setSlot (k, 0, 0, 0.0f);
+}
+
+void OctoCidAudioProcessorEditor::modSetAmount (int slot, float percent)
+{
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (processor.apvts.getParameter (ModParams::slotId (slot, "amt"))))
+    {
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (-100.0f, 100.0f, percent)));
+        p->endChangeGesture();
+    }
+}
+
+void OctoCidAudioProcessorEditor::modNudge (int dest, float deltaPercent)
+{
+    juce::Array<Mod> mods;
+    modsFor (dest, mods);
+    for (auto& m : mods)
+        modSetAmount (m.slot, m.amount * 100.0f + deltaPercent);
 }
 
 void OctoCidAudioProcessorEditor::rebuildPresetBox()
