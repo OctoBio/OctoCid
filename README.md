@@ -4,6 +4,16 @@ Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid cla
 
 > Version 1.0. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
 
+## ⬇️ Télécharger
+
+👉 **[Dernière version (VST3 + Standalone, Windows 64 bits)](https://github.com/OctoBio/OctoCid/releases/latest)** — aucun compte GitHub nécessaire.
+
+1. Télécharger `OctoCid-…-VST3-Windows.zip` et le dézipper
+2. Copier le dossier `OctoCid.vst3` dans `C:\Program Files\Common Files\VST3`
+3. Relancer le DAW (ou relancer le scan des plugins)
+
+Si Windows affiche « Windows a protégé votre ordinateur » (plugin non signé) : *Informations complémentaires* > *Exécuter quand même*.
+
 ## Interface
 
 Fenêtre redimensionnable (tirer le coin en bas à droite, ou menu « ... » > Taille, de 60 à 200 %), taille gardée avec le projet :

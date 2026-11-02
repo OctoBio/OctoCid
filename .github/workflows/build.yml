@@ -3,8 +3,12 @@ name: Build OctoCid (Windows)
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
@@ -37,3 +41,39 @@ jobs:
         with:
           name: OctoCid-Standalone-Windows
           path: build/OctoCid_artefacts/Release/Standalone/OctoCid.exe
+
+      # Sur un tag vX.Y.Z : page de téléchargement publique (pas besoin de compte GitHub)
+      - name: Package release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path build/OctoCid_artefacts/Release/VST3/OctoCid.vst3 -DestinationPath dist/OctoCid-${{ github.ref_name }}-VST3-Windows.zip
+          Compress-Archive -Path build/OctoCid_artefacts/Release/Standalone/OctoCid.exe -DestinationPath dist/OctoCid-${{ github.ref_name }}-Standalone-Windows.zip
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $notes = @"
+          OctoCid ${{ github.ref_name }} - synthé acid VST3 (Windows 64 bits)
+
+          Installation du VST3 :
+          1. Télécharger OctoCid-${{ github.ref_name }}-VST3-Windows.zip ci-dessous et le dézipper
+          2. Copier le dossier OctoCid.vst3 dans C:\Program Files\Common Files\VST3
+          3. Relancer le DAW (ou relancer un scan des plugins)
+
+          Version autonome (sans DAW) : OctoCid-${{ github.ref_name }}-Standalone-Windows.zip
+
+          Windows peut afficher « Windows a protégé votre ordinateur » (plugin non signé) : Informations complémentaires > Exécuter quand même.
+          "@
+          # release déjà créée depuis le site GitHub : on y ajoute les zips ; sinon on la crée
+          gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "${{ github.ref_name }}" dist/*.zip --clobber --repo "${{ github.repository }}"
+          } else {
+            gh release create "${{ github.ref_name }}" dist/*.zip --repo "${{ github.repository }}" --title "OctoCid ${{ github.ref_name }}" --notes "$notes"
+          }
+          exit 0
