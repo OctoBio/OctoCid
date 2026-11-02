@@ -33,6 +33,7 @@ namespace OctoBlob
         juce::Point<float> pos;
         float jump = 0.0f, squash = 0.0f, stretch = 0.0f, stretchAngle = 0.0f, sag = 0.0f, turb = 0.0f, time = 0.0f;
         float twist = 0.0f, jelly = 0.0f, jellyPhase = 0.0f, wave = 0.0f, wavePhase = 0.0f, dome = 1.12f;
+        float splash = 0.0f;   // éclaboussure sur les 4 axes (note jouée)
         std::array<float, kHarm> amp {}, phase {};
     };
 
@@ -50,6 +51,25 @@ namespace OctoBlob
             squashVel += accent ? 7.0f : (slide ? 1.5f : 4.0f);
             for (int i = 0; i < kHarm; ++i) ampVel[(size_t) i] += (rnd() - 0.5f) * (accent ? 3.0f : 1.7f) / (1.0f + 0.3f * (float) i);
             jellyVel += (rnd() < 0.5f ? -1.0f : 1.0f) * (accent ? 4.0f : (slide ? 1.2f : 2.2f));
+            // éclate comme une goutte d'eau : 4 lobes (haut, bas, gauche, droite) + gouttelettes
+            splashVel += accent ? 5.5f : (slide ? 1.2f : 3.5f);
+            if (! slide)
+            {
+                const int n = accent ? 8 : 4;
+                const auto origin = shape.pos + juce::Point<float> (0.0f, shape.jump);
+                for (int k = 0; k < n; ++k)
+                {
+                    const float a = juce::MathConstants<float>::halfPi * (float) (k % 4) + (k >= 4 ? 0.25f * (rnd() - 0.5f) : 0.12f * (rnd() - 0.5f));
+                    const juce::Point<float> dir (std::cos (a), std::sin (a));
+                    for (auto& d : drops)
+                        if (d.life <= 0.0f)
+                        {
+                            const float sp = (accent ? 3.6f : 2.6f) * (0.75f + 0.5f * rnd()) * (k >= 4 ? 0.7f : 1.0f);
+                            d = { origin + dir * 1.05f, dir * sp + juce::Point<float> (0.0f, -0.6f), 1.0f, (accent ? 0.11f : 0.08f) * (0.7f + 0.6f * rnd()) };
+                            break;
+                        }
+                }
+            }
             twistVel += (rnd() - 0.5f) * (accent ? 6.0f : 3.0f);
             if (accent && shape.jump > -0.01f) jumpVel = -3.4f;
             mouth = std::max (mouth, accent ? 1.0f : 0.45f);
@@ -100,6 +120,17 @@ namespace OctoBlob
             twistSpring += twistVel * dt;
             shape.twist = juce::jlimit (-1.2f, 1.2f, rev * 0.85f * std::sin (t * 0.9f) + twistSpring * 0.15f);
             shape.wave = 0.045f * rev;
+            splashVel += (-260.0f * splashSpring - 14.0f * splashVel) * dt;     // ressort vif : éclate puis se referme vite
+            splashSpring = juce::jlimit (-0.2f, 0.32f, splashSpring + splashVel * dt);
+            shape.splash = splashSpring;
+            for (auto& d : drops)
+                if (d.life > 0.0f)
+                {
+                    d.vel.y += 9.0f * dt;                    // gravité
+                    d.vel *= std::exp (-dt * 1.2f);
+                    d.pos += d.vel * dt;
+                    d.life -= dt / 0.7f;
+                }
             shape.wavePhase += dt * (2.0f + 4.0f * rev);
 
             // Errance : il part dans tous les sens, rappelé vers le centre
@@ -175,6 +206,8 @@ namespace OctoBlob
         struct Ripple { float age = -1.0f; juce::Point<float> c; };
         std::array<Ripple, 4> ripples {};
         struct Bubble { float x = 0, y = 0, r = 0, speed = 0, life = 0; };
+        struct Drop { juce::Point<float> pos, vel; float life = 0.0f, r = 0.0f; };   // gouttelettes projetées
+        std::array<Drop, 16> drops {};
         std::array<Bubble, 10> bubbles {};
 
     private:
@@ -182,7 +215,7 @@ namespace OctoBlob
         uint32_t seed = 0x1234567u;
         juce::Point<float> vel;
         float jumpVel = 0.0f, squashVel = 0.0f, blinkT = 1.5f, bubbleAcc = 0.0f;
-        float jellySpring = 0.0f, jellyVel = 0.0f, twistSpring = 0.0f, twistVel = 0.0f;
+        float jellySpring = 0.0f, jellyVel = 0.0f, twistSpring = 0.0f, twistVel = 0.0f, splashSpring = 0.0f, splashVel = 0.0f;
         std::array<float, kHarm> ampVel {};
         std::array<Shape, kHist> hist {};
         int histPos = 0, histCount = 0;
@@ -257,6 +290,11 @@ namespace OctoBlob
             for (int k = 0; k < kHarm; ++k) rf += s.amp[(size_t) k] * std::cos ((float) (k + 2) * th + s.phase[(size_t) k]);
             rf += s.turb * std::sin (9.0f * th + s.time * 7.0f);
             rf += s.wave * std::sin (8.0f * th - s.wavePhase);
+            if (s.splash != 0.0f)   // 4 lobes arrondis sur les axes (haut, bas, gauche, droite)
+            {
+                const float c = 0.5f + 0.5f * std::cos (4.0f * th);
+                rf += s.splash * (c * c * 1.25f - 0.45f);
+            }
             p *= 1.0f + rf * std::min (1.0f, r);
         }
         float x = p.x, y = p.y;

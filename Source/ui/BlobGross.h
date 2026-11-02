@@ -449,6 +449,25 @@ namespace OctoBlob
         }
 
         }
+        // gouttelettes projetées sur les 4 axes (notes)
+        for (auto& d : sim.drops)
+            if (d.life > 0.0f)
+            {
+                const juce::Point<float> c (area.getCentreX() + d.pos.x * R, area.getCentreY() + (0.12f + d.pos.y) * R);
+                const float r = d.r * R * (0.6f + 0.4f * d.life);
+                const float st = juce::jlimit (1.0f, 2.2f, 1.0f + d.vel.getDistanceFromOrigin() * 0.15f);
+                const float ang = std::atan2 (d.vel.y, d.vel.x);
+                juce::Path dp; dp.addEllipse (-r * st, -r, r * 2.0f * st, r * 2.0f);
+                dp.applyTransform (juce::AffineTransform::rotation (ang).translated (c));
+                const float al = juce::jlimit (0.0f, 1.0f, d.life * 1.5f);
+                juce::ColourGradient dg (light.withAlpha (0.95f * al), c.x - r * 0.4f, c.y - r * 0.4f, dark.withAlpha (0.9f * al), c.x + r, c.y + r, true);
+                dg.addColour (0.5, base.withAlpha (0.92f * al));
+                g.setGradientFill (dg); g.fillPath (dp);
+                g.setColour (dark.darker (0.6f).withAlpha (0.8f * al)); g.strokePath (dp, juce::PathStrokeType (std::max (1.0f, R * 0.02f)));
+                g.setColour (juce::Colours::white.withAlpha (0.85f * al));
+                g.fillEllipse (juce::Rectangle<float> (r * 0.5f, r * 0.5f).withCentre (c.translated (-r * 0.35f, -r * 0.35f)));
+            }
+
         // yeux : globuleux, injectés de sang, paupières lourdes ; pupilles minuscules -> dilatées (cutoff)
         const float pk = juce::jlimit (0.0f, 1.0f, sim.pupil);
         for (int i = 0; i < st.numEyes; ++i)
