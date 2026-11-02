@@ -92,7 +92,7 @@ private:
     // Barre du haut
     juce::ComboBox presetBox;
     juce::TextButton prevButton { "<" }, nextButton { ">" }, menuButton { "..." };
-    juce::ToggleButton seqToggle { "SEQ" }, snailToggle { "Escargot" };
+    juce::ToggleButton seqToggle { "SEQ" }, snailToggle { "Mascotte" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> seqAttachment, snailAttachment;
     std::unique_ptr<octoui::Segmented> quality;
 

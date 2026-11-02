@@ -375,6 +375,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     OctoLook::knobOverride = OctoPrefs::getInt ("knob", -1);
     OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
     OctoSnail::mascotStyle = OctoPrefs::getInt ("snail", OctoSnail::defaultMascotStyle);
+    OctoMascot::kind = OctoPrefs::getInt ("mascot", OctoMascot::defaultKind);
     OctoColours::applyTheme (OctoDecor::get().theme);
     loadDecorImages();
     lnf.refreshColours();
@@ -411,7 +412,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
     nextButton.setTooltip ("Preset suivant");
     menuButton.setTooltip ("Presets, apparence, taille, patterns d'usine");
     seqToggle.setTooltip ("ON : le sequenceur joue avec le DAW. OFF : jeu au clavier / piano roll");
-    snailToggle.setTooltip ("Animation de l'escargot On / Off");
+    snailToggle.setTooltip ("Animation de la mascotte On / Off");
     seqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (st, seqOn.getParamID(), seqToggle);
     snailAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (st, snailAnim.getParamID(), snailToggle);
     quality = std::make_unique<octoui::Segmented> (st, ParamIDs::quality, juce::StringArray { "Normal", "High" });
@@ -446,6 +447,7 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
         src.cutoff = P (ParamIDs::cutoff); src.resonance = P (ParamIDs::resonance); src.envmod = P (ParamIDs::envMod);
         src.decay = P (ParamIDs::decay); src.drive = P (ParamIDs::driveAmt); src.driveType = P (ParamIDs::driveType);
         src.tune = P (ParamIDs::tune); src.anim = P (ParamIDs::snailAnim);
+        src.reverb = P (ParamIDs::reverbMix); src.accent = P (ParamIDs::accent);
         src.noteCount = &processor.noteCount; src.lastAccent = &processor.lastAccent; src.lastSlide = &processor.lastSlide;
         src.lastNote = &processor.lastNote; src.lfo = &processor.lfoView;
         mascot.setSources (src);
@@ -749,13 +751,16 @@ void OctoCidAudioProcessorEditor::showMenu()
                        i == OctoDecor::current);
     decor.addSeparator();
     decor.addItem (790, juce::String::fromUTF8 ("Choisir une image sur mon ordi…"));
+    snail.addItem (880, juce::String::fromUTF8 ("Blob gluant (bave avec l'Accent)"), true, OctoMascot::kind == 1);
+    snail.addSeparator();
+    snail.addSectionHeader ("Escargot");
     for (int i = 0; i < OctoSnail::numStyles; ++i)
-        snail.addItem (800 + i, juce::String::fromUTF8 (OctoSnail::styles[i].name), true, i == OctoSnail::mascotStyle);
+        snail.addItem (800 + i, juce::String::fromUTF8 (OctoSnail::styles[i].name), true, OctoMascot::kind == 0 && i == OctoSnail::mascotStyle);
     juce::PopupMenu appearance;
     appearance.addSubMenu ("Fond", decor);
     appearance.addSubMenu ("Interface", look);
     appearance.addSubMenu ("Potards", knobs);
-    appearance.addSubMenu ("Escargot", snail);
+    appearance.addSubMenu ("Mascotte", snail);
     appearance.addSeparator();
     appearance.addItem (899, juce::String::fromUTF8 ("Revenir à l'apparence d'origine"));
 
@@ -782,11 +787,13 @@ void OctoCidAudioProcessorEditor::showMenu()
         else if (r >= 600 && r <= 600 + KnobStyles::chickenCount) { OctoPrefs::setInt ("knob", r - 601); applyAppearance(); }
         else if (r >= 700 && r < 700 + OctoDecor::numDecors) { OctoPrefs::setInt ("decor", r - 700); applyAppearance(); }
         else if (r == 790) chooseBackgroundImage();
-        else if (r >= 800 && r < 800 + OctoSnail::numStyles) { OctoPrefs::setInt ("snail", r - 800); applyAppearance(); }
+        else if (r >= 800 && r < 800 + OctoSnail::numStyles) { OctoPrefs::setInt ("snail", r - 800); OctoPrefs::setInt ("mascot", 0); applyAppearance(); }
+        else if (r == 880) { OctoPrefs::setInt ("mascot", 1); applyAppearance(); }
         else if (r == 899)
         {
             OctoPrefs::setInt ("look", OctoLook::defaultLook); OctoPrefs::setInt ("knob", -1);
             OctoPrefs::setInt ("decor", OctoDecor::defaultDecor); OctoPrefs::setInt ("snail", OctoSnail::defaultMascotStyle);
+            OctoPrefs::setInt ("mascot", OctoMascot::defaultKind);
             applyAppearance();
         }
         else if (r >= 400 && r < 400 + octocid::FactoryBanks::count) sequencer.loadFactoryBank (r - 400);
@@ -849,6 +856,7 @@ void OctoCidAudioProcessorEditor::applyAppearance()
     OctoLook::knobOverride = OctoPrefs::getInt ("knob", -1);
     OctoDecor::apply (OctoPrefs::getInt ("decor", OctoDecor::defaultDecor));
     OctoSnail::mascotStyle = OctoPrefs::getInt ("snail", OctoSnail::defaultMascotStyle);
+    OctoMascot::kind = OctoPrefs::getInt ("mascot", OctoMascot::defaultKind);
     loadDecorImages();
     setTheme (OctoDecor::get().theme);
     mascot.styleChanged();

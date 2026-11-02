@@ -3,6 +3,10 @@
 #include <JuceHeader.h>
 #include "Palette.h"
 #include "Snail.h"
+#include "Blob.h"
+
+// Mascotte choisie (préférence « mascot ») : 0 escargot, 1 blob gluant
+namespace OctoMascot { inline constexpr int defaultKind = 1; inline int kind = defaultKind; }
 
 //==============================================================================
 // Zone mascotte : l'escargot (version fixe ; il s'animera à l'étape 6).
@@ -18,7 +22,8 @@ public:
     struct Sources
     {
         juce::RangedAudioParameter *cutoff = nullptr, *resonance = nullptr, *envmod = nullptr, *decay = nullptr,
-                                   *drive = nullptr, *driveType = nullptr, *tune = nullptr, *lfoDepth = nullptr, *anim = nullptr;
+                                   *drive = nullptr, *driveType = nullptr, *tune = nullptr, *lfoDepth = nullptr, *anim = nullptr,
+                                   *reverb = nullptr, *accent = nullptr, *envAmt = nullptr;
         std::atomic<int>*   noteCount = nullptr;
         std::atomic<bool>*  lastAccent = nullptr;
         std::atomic<bool>*  lastSlide = nullptr;
@@ -42,6 +47,12 @@ public:
 
     void paint (juce::Graphics& g) override
     {
+        if (OctoMascot::kind == 1)
+        {
+            auto area = snailArea.isEmpty() ? getLocalBounds().toFloat() : snailArea;
+            OctoBlob::drawGross (g, area, blob, OctoBlob::grossStyles[0], 2, g.getInternalContext().getPhysicalPixelScaleFactor());
+            return;
+        }
         const auto& st = OctoSnail::styles[juce::jlimit (0, OctoSnail::numStyles - 1, OctoSnail::mascotStyle)];
         auto area = snailArea.isEmpty() ? getLocalBounds().toFloat() : snailArea;
 
@@ -78,6 +89,7 @@ private:
             return;
         }
         paused = false;
+        if (OctoMascot::kind == 1) { stepBlob (dt); repaint(); return; }
         t += dt;
         anim.time = t;
         ++anim.frame;
@@ -142,7 +154,31 @@ private:
         repaint();
     }
 
+    // Blob : réglages -> déformations, notes -> secousses / bave
+    void stepBlob (float dt)
+    {
+        OctoBlob::Inputs in;
+        in.cutoff = norm (sources.cutoff, 0.5f);
+        in.reso = norm (sources.resonance, 0.0f);
+        in.reverb = norm (sources.reverb, 0.0f);
+        in.envmod = norm (sources.envmod, 0.5f);
+        in.decay = norm (sources.decay, 0.3f);
+        in.accent = norm (sources.accent, 0.5f);
+        const int dtype = sources.driveType != nullptr ? juce::roundToInt (sources.driveType->convertFrom0to1 (sources.driveType->getValue())) : 0;
+        in.drive = dtype == 0 ? 0.0f : norm (sources.drive, 0.0f);
+        in.hardDrive = dtype == 2;
+        in.lfo = sources.lfo != nullptr ? sources.lfo->load() : 0.0f;
+        const int count = sources.noteCount != nullptr ? sources.noteCount->load() : lastCount;
+        if (count != lastCount)
+        {
+            lastCount = count;
+            blob.noteOn (sources.lastAccent != nullptr && sources.lastAccent->load(), sources.lastSlide != nullptr && sources.lastSlide->load());
+        }
+        blob.step (dt, in);
+    }
+
     Sources sources;
+    OctoBlob::Sim blob;
     OctoSnail::Anim anim;
     juce::Image staticCache;
     juce::Rectangle<float> snailArea;

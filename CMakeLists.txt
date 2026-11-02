@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 1.5.1 LANGUAGES C CXX)
+project(OctoCid VERSION 1.6.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -55,6 +55,8 @@ target_sources(OctoCid PRIVATE
     Source/ui/LfoEditor.h
     Source/ui/Mascot.h
     Source/ui/Snail.h
+    Source/ui/Blob.h
+    Source/ui/BlobGross.h
     Source/Params.h
     Source/Presets.h
     Source/dsp/DspUtils.h

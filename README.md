@@ -1,8 +1,8 @@
 # OctoCid
 
-Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte escargot.
+Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte animée (blob gluant ou escargot).
 
-> Version 1.5.1. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
+> Version 1.6.0. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
 
 ## ⬇️ Télécharger
 
@@ -18,7 +18,7 @@ Si Windows affiche « Windows a protégé votre ordinateur » (plugin non signé
 
 Fenêtre redimensionnable (tirer le coin en bas à droite, ou menu « ... » > Taille, de 60 à 200 %), taille gardée avec le projet :
 
-1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de l'escargot, qualité Normal / High, menu (presets, apparence, taille, patterns d'usine).
+1. **Barre du haut** : logo, presets, SEQ ON/OFF, animation de la mascotte, qualité Normal / High, menu (presets, apparence, taille, patterns d'usine).
 2. **Drive** à gauche, **mascotte** au centre, **3 LFO** à droite (onglets 1 / 2 / 3).
 3. **Panneau 303** (Tune, Cutoff, Resonance, Env Mod, Decay, Accent, Waveform, Volume) et le bouton du tiroir
    les boutons du tiroir **SLIME MODS** (réglages avancés + Punch / Delay / Reverb), **EFFETS** et **MOD**
@@ -28,13 +28,22 @@ Fenêtre redimensionnable (tirer le coin en bas à droite, ou menu « ... » > T
 Potards : valeur affichée au survol et pendant le réglage, double-clic = valeur par défaut,
 Ctrl + glisser = réglage fin, molette. Fond « portail » illustré, panneaux en verre dépoli, style glitch.
 
-## L'escargot
+## La mascotte
+
+**Blob gluant** (par défaut) : peau calculée pixel par pixel (relief, couche de mucus luisante, lumière qui
+traverse les bords). Il se balade dans tous les sens, tremble comme de la gelée à chaque note et saute sur les
+accents, sans jamais changer de taille. **Accent** : il bave (filets, gouttes, flaque) ; **Resonance** : couleur ;
+**Cutoff** : fermé il fond et s'étale, ouvert il devient nerveux, et ses pupilles se dilatent ; **Reverb** : il se
+tord en spirale, laisse des échos fantômes et des ondes ; **Drive** : bulles et cœur qui chauffe ; **Env Mod** : ses
+cellules tournent ; **LFO** : il se balance. Menu « ... » > Apparence > Mascotte pour revenir à l'escargot.
+
+### L'escargot
 
 Il réagit au son (30 images/s, seulement sa zone est redessinée, le corps est mis en cache) :
 pupilles qui se dilatent avec le **Cutoff**, yeux qui tremblent avec la **Resonance**, flaque qui grandit avec
 l'**Env Mod**, bave qui s'allonge avec le **Decay**, saut sur les **accents**, glissade et traînée lumineuse sur les
 **slides**, coquille qui chauffe et transpire avec le **Drive**, pédoncules qui ondulent avec le **LFO** et penchent
-avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton « Escargot » pour le figer (sauvegardé).
+avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton « Mascotte » pour la figer (sauvegardé).
 
 ## Jeu au clavier
 
@@ -111,7 +120,7 @@ Menu « ... » > **Enregistrer le preset…** : le son actuel est sauvegardé da
 ## Apparence
 
 Menu « ... » > **Apparence** : 17 fonds (portails violet, vert, feu, bleu, orage, acide, cosmos…) + **ta propre image** (*Fond > Choisir une image sur mon ordi…* : elle reste sur ton ordinateur, jamais intégrée au plugin), 16 styles d'interface
-(glitch, épurés, BD), 16 potards, 9 escargots. Choix gardé pour toutes les fenêtres ; « Revenir à l'apparence d'origine ».
+(glitch, épurés, BD), 16 potards, mascotte blob ou 9 escargots. Choix gardé pour toutes les fenêtres ; « Revenir à l'apparence d'origine ».
 
 ## Presets d'usine
 
@@ -164,3 +173,4 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 7. Presets, banques de patterns, finitions ✅ (pluginval : voir ci-dessous)
 8. 3 LFO assignables + page MOD ✅ (v1.4.0)
 9. LFO dessinés à la souris + grand éditeur ✅ (v1.5.0)
+10. Mascotte blob gluant (peau ombrée en relief, bave avec l'Accent) ✅ (v1.6.0)
