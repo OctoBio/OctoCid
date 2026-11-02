@@ -2,7 +2,7 @@
 
 Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte escargot.
 
-> Version 1.0. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
+> Version 1.5.1. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
 
 ## ⬇️ Télécharger
 
