@@ -8,6 +8,8 @@
 #include "dsp/Drive.h"
 #include "dsp/Fx.h"
 #include "dsp/FxPlus.h"
+#include "dsp/ModLfo.h"
+#include <array>
 #include "seq/Sequencer.h"
 #include "seq/PatternIO.h"
 
@@ -75,6 +77,9 @@ public:
     std::atomic<int>   noteCount { 0 };     // incrémenté à chaque note jouée
     std::atomic<bool>  lastSlide { false }; // la dernière note était glissée
     std::atomic<float> lfoView { 0.0f };    // valeur du LFO (-1..1)
+    // Modulation, pour l'interface : sortie et position des 3 LFO, décalage de chaque destination
+    std::array<std::atomic<float>, ModParams::numLfos> lfoValueView {}, lfoPhaseView {};
+    std::array<std::atomic<float>, ModParams::numDests> modOffsetView {};
     std::atomic<int>  seqStep { -1 };            // pas en cours (-1 : arrêté)
     std::atomic<int>  seqActivePattern { 0 };    // pattern qui joue
     std::atomic<int>  seqQueuedPattern { 0 };    // pattern qui jouera au prochain cycle
@@ -104,6 +109,30 @@ private:
     void updateVoiceParams() noexcept;
     void updateFxParams() noexcept;
     double blockBpm = 120.0;
+
+    // Modulation (3 LFO, 8 emplacements)
+    void setupModulation();
+    void migrateOldLfo();
+    void resetModulation();
+    void computeModulation (int numSamples, double ppq, bool playing) noexcept;
+    float modValueIndex (int destIndex, std::atomic<float>* raw) const noexcept;
+    float modValue (std::atomic<float>* raw) const noexcept;
+    void publishModulationView() noexcept;
+    void processFx (float* left, float* right, int start, int n, double ppqStart, double dPpq) noexcept;
+    struct DestRef { juce::RangedAudioParameter* param = nullptr; std::atomic<float>* raw = nullptr; };
+    struct LfoRaw { std::atomic<float> *shape, *rate, *sync, *mode, *phase, *delay, *fade, *smooth, *pol; };
+    struct SlotRaw { std::atomic<float> *src, *dst, *amt; };
+    std::array<DestRef, ModParams::numDests> modDest {};
+    std::array<LfoRaw, ModParams::numLfos> lfoRaw {};
+    std::array<SlotRaw, ModParams::numSlots> slotRaw {};
+    std::array<octocid::ModLfo, ModParams::numLfos> modLfo {};
+    std::array<float, ModParams::numLfos> lfoValue {};
+    std::array<bool, ModParams::numLfos> lfoUsed {};
+    std::array<int, ModParams::numLfos> lfoRateDest {};
+    std::array<float, ModParams::numDests> modOffset {};
+    bool anyModulation = false;
+    int cutoffDest = 0;
+    int lastModNoteCount = 0;
     void updateLfoSync() noexcept;
     void buildEvents (const juce::MidiBuffer& midi, int numSamples) noexcept;
     void drainPatternFifo() noexcept;

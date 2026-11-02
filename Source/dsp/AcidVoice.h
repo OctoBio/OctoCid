@@ -18,6 +18,7 @@ namespace octocid
         // Panneau principal
         float tune      = 0.0f;   // -12..+12 demi-tons
         float cutoff    = 0.5f;   // 0..1
+        float cutoffModOct = 0.0f; // modulation du Cutoff par les LFO, en octaves
         float resonance = 0.5f;   // 0..1
         float envMod    = 0.5f;   // 0..1
         float decay     = 0.5f;   // 0..1
@@ -208,6 +209,7 @@ namespace octocid
             auto smoothTo = [this] (float& v, float t) { v += (t - v) * smoothCoef; };
             smoothTo (sm.tune,        target.tune);
             smoothTo (sm.cutoff,      target.cutoff);
+            smoothTo (sm.cutoffModOct, target.cutoffModOct);
             smoothTo (sm.resonance,   target.resonance);
             smoothTo (sm.envMod,      target.envMod);
             smoothTo (sm.decay,       target.decay);
@@ -272,7 +274,7 @@ namespace octocid
             const float envScaler = (1.0f - c) * (3.773996f * e + 0.736966f) + c * (4.194549f * e + 0.864345f);
             const float envOffset = 0.048293f * c + 0.294391f;
             const float baseHz = 313.815f * std::exp2 (cutOct);
-            float octaves = envScaler * (envSmoothed - envOffset) + kAccentOctaves * sm.accent * sweep + driftOct;
+            float octaves = envScaler * (envSmoothed - envOffset) + kAccentOctaves * sm.accent * sweep + driftOct + sm.cutoffModOct;
             if (sm.filterTrack > 1.0e-4f)
                 octaves += sm.filterTrack * std::log2 (f * (1.0f / 130.8128f));   // référence : Do3
             if (sm.filterFm > 1.0e-4f)

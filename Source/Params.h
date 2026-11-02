@@ -114,3 +114,51 @@ namespace LfoSync
     inline constexpr double beats[] = { 0.0, 4.0, 2.0, 1.0, 0.5, 0.25, 0.125,
                                         1.5, 0.75, 0.375, 2.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0 };
 }
+
+//==============================================================================
+// Modulation : 3 LFO assignables et 8 emplacements (source -> destination, quantité)
+//==============================================================================
+namespace ModParams
+{
+    inline constexpr int numLfos = 3, numSlots = 8;
+
+    inline juce::String lfoId (int lfo, const char* what) { return "l" + juce::String (lfo + 1) + what; }   // ex. "l1rate"
+    inline juce::String slotId (int slot, const char* what) { return "m" + juce::String (slot + 1) + what; } // ex. "m1amt"
+
+    inline const juce::StringArray shapeNames { "Sinus", "Triangle", "Scie +", "Scie -", "Carre", "S&H", "Aleatoire" };
+    inline const juce::StringArray modeNames  { "Libre", "Note", "Synchro", "Un coup", "Aleatoire" };
+    inline const juce::StringArray sourceNames { "-", "LFO 1", "LFO 2", "LFO 3" };
+
+    // Destinations : tous les potards (les sélecteurs à choix ne sont pas modulables)
+    struct Dest { const char* id; const char* name; };
+    inline const Dest dests[] = {
+        { "",            "-" },
+        { "tune",        "Tune" },        { "cutoff",      "Cutoff" },       { "resonance",   "Resonance" },
+        { "envmod",      "Env Mod" },     { "decay",       "Decay" },        { "accent",      "Accent" },
+        { "volume",      "Volume" },
+        { "slidetime",   "Slide Time" },  { "slidepunch",  "Slide Punch" },  { "accentdecay", "Acc. Decay" },
+        { "softattack",  "Soft Attack" }, { "filtertrack", "F. Track" },     { "filterfm",    "Filter FM" },
+        { "filterdrive", "F. Drive" },    { "sublevel",    "Sub Level" },    { "analog",      "Analog" },
+        { "drive",       "Drive" },       { "drivetone",   "Drive Tone" },   { "drivemix",    "Drive Mix" },
+        { "punch",       "Punch" },       { "punchattack", "Punch Attaque" },
+        { "dlymix",      "Delay" },       { "dlyfb",       "Delay Fb" },
+        { "revmix",      "Reverb" },      { "revdecay",    "Rev. Decay" },   { "revtone",     "Rev. Tone" },
+        { "impact",      "Impact" },      { "smash",       "Smash" },        { "jetmix",      "Jet Mix" },
+        { "jetfb",       "Jet Fb" },      { "pump",        "Pump" },         { "width",       "Width" },
+        { "l1rate",      "LFO 1 Vitesse" }, { "l2rate",    "LFO 2 Vitesse" }, { "l3rate",     "LFO 3 Vitesse" },
+        { "seqgate",     "Seq Gate" },
+    };
+    inline constexpr int numDests = (int) (sizeof (dests) / sizeof (dests[0]));
+    inline juce::StringArray destNames()
+    {
+        juce::StringArray a;
+        for (auto& d : dests) a.add (juce::String::fromUTF8 (d.name));
+        return a;
+    }
+    inline int destIndex (const juce::String& paramId)
+    {
+        for (int i = 1; i < numDests; ++i) if (paramId == dests[i].id) return i;
+        return 0;
+    }
+}
+

@@ -65,6 +65,7 @@ target_sources(OctoCid PRIVATE
     Source/dsp/Lfo.h
     Source/dsp/Fx.h
     Source/dsp/FxPlus.h
+    Source/dsp/ModLfo.h
     Source/seq/Pattern.h
     Source/seq/PatternIO.h
     Source/seq/Sequencer.h

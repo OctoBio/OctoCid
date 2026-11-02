@@ -30,6 +30,7 @@ OctoCidAudioProcessor::OctoCidAudioProcessor()
     p.impact = raw (impact); p.smash = raw (smash); p.jetMix = raw (jetMix); p.jetMode = raw (jetMode);
     p.jetRate = raw (jetRate); p.jetFb = raw (jetFb); p.pump = raw (ParamIDs::pump); p.pumpRate = raw (pumpRate);
     p.width = raw (ParamIDs::width);
+    setupModulation();
 
     // 8 patterns de démo au départ
     masterBank = octocid::PatternTools::demoBank();
@@ -43,7 +44,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
 
     auto pct = AudioParameterFloatAttributes().withLabel ("%");
     auto ms  = AudioParameterFloatAttributes().withLabel ("ms");
-    auto percent = [&] (const ParameterID& id, const char* name, float def)
+    auto percent = [&] (const ParameterID& id, const juce::String& name, float def)
     {
         layout.add (std::make_unique<AudioParameterFloat> (id, name, NormalisableRange<float> (0.0f, 100.0f, 0.1f), def, pct));
     };
@@ -111,6 +112,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout OctoCidAudioProcessor::creat
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::pumpRate, "Pump Rate", PumpSync::names, 0));
     percent (ParamIDs::width,  "Width", 0.0f);
 
+    // --- 3 LFO de modulation + 8 emplacements d'assignation
+    for (int i = 0; i < ModParams::numLfos; ++i)
+    {
+        const juce::String n = "LFO " + juce::String (i + 1) + " ";
+        auto id = [i] (const char* w) { return juce::ParameterID { ModParams::lfoId (i, w), 1 }; };
+        layout.add (std::make_unique<AudioParameterChoice> (id ("shape"), n + "Shape", ModParams::shapeNames, 0));
+        layout.add (std::make_unique<AudioParameterFloat> (id ("rate"), n + "Rate", skewed (0.02f, 30.0f, 2.0f, 0.01f), 2.0f,
+                                                           AudioParameterFloatAttributes().withLabel ("Hz")));
+        juce::StringArray syncNames; for (auto* nm : octocid::ModSync::names) syncNames.add (juce::String::fromUTF8 (nm));
+        layout.add (std::make_unique<AudioParameterChoice> (id ("sync"), n + "Sync", syncNames, 0));
+        layout.add (std::make_unique<AudioParameterChoice> (id ("mode"), n + "Mode", ModParams::modeNames, 0));
+        layout.add (std::make_unique<AudioParameterFloat> (id ("phase"), n + "Phase", NormalisableRange<float> (0.0f, 360.0f, 1.0f), 0.0f,
+                                                           AudioParameterFloatAttributes().withLabel (juce::String::fromUTF8 ("°"))));
+        layout.add (std::make_unique<AudioParameterFloat> (id ("delay"), n + "Delay", skewed (0.0f, 4000.0f, 500.0f, 1.0f), 0.0f, ms));
+        layout.add (std::make_unique<AudioParameterFloat> (id ("fade"), n + "Fade", skewed (0.0f, 4000.0f, 500.0f, 1.0f), 0.0f, ms));
+        percent (id ("smooth"), n + "Smooth", 0.0f);
+        layout.add (std::make_unique<AudioParameterChoice> (id ("pol"), n + "Polarity", StringArray { "Bipolaire", "Unipolaire" }, 0));
+    }
+    for (int k = 0; k < ModParams::numSlots; ++k)
+    {
+        const juce::String n = "Mod " + juce::String (k + 1) + " ";
+        auto id = [k] (const char* w) { return juce::ParameterID { ModParams::slotId (k, w), 1 }; };
+        layout.add (std::make_unique<AudioParameterChoice> (id ("src"), n + "Source", ModParams::sourceNames, 0));
+        layout.add (std::make_unique<AudioParameterChoice> (id ("dst"), n + "Destination", ModParams::destNames(), 0));
+        layout.add (std::make_unique<AudioParameterFloat> (id ("amt"), n + "Amount", NormalisableRange<float> (-100.0f, 100.0f, 0.01f), 0.0f, pct));
+    }
+
     // --- Séquenceur
     layout.add (std::make_unique<AudioParameterBool> (ParamIDs::seqOn, "Seq On", false));
     layout.add (std::make_unique<AudioParameterChoice> (ParamIDs::seqPattern, "Seq Pattern",
@@ -152,6 +180,7 @@ void OctoCidAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     impactFx.prepare (sampleRate); smashFx.prepare (sampleRate); jetFx.prepare (sampleRate);
     pumpFx.prepare (sampleRate); widthFx.prepare (sampleRate);
     fxPpq = 0.0;
+    resetModulation();
     delay.prepare (sampleRate);
     reverb.prepare (sampleRate);
 
@@ -199,26 +228,28 @@ void OctoCidAudioProcessor::updateParams() noexcept
 void OctoCidAudioProcessor::updateVoiceParams() noexcept
 {
     octocid::VoiceParams v;
-    v.tune      = p.tune->load();
+    v.tune      = modValue (p.tune);
     v.cutoff    = p.cutoff->load()    * 0.01f;
-    v.resonance = p.resonance->load() * 0.01f;
-    v.envMod    = p.envMod->load()    * 0.01f;
-    v.decay     = p.decay->load()     * 0.01f;
-    v.accent    = p.accent->load()    * 0.01f;
+    // Cutoff modulé en octaves (comme le circuit : linéaire en octaves, sans butée sur la course du potard)
+    if (anyModulation) v.cutoffModOct = modOffset[(size_t) cutoffDest] * 2.931652f;
+    v.resonance = modValue (p.resonance) * 0.01f;
+    v.envMod    = modValue (p.envMod)    * 0.01f;
+    v.decay     = modValue (p.decay)     * 0.01f;
+    v.accent    = modValue (p.accent)    * 0.01f;
     v.squareMix = p.waveform->load() > 0.5f ? 1.0f : 0.0f;   // fondu lissé dans la voix
 
-    v.slideTimeMs   = p.slideTime->load();
+    v.slideTimeMs   = modValue (p.slideTime);
     v.sweepSpeed    = juce::jlimit (0, 2, (int) p.sweepSpeed->load());
-    v.slidePunch    = p.slidePunch->load() * 0.01f;
-    v.accentDecayMs = p.accentDecay->load();
-    v.softAttackMs  = p.softAttack->load();
-    v.filterTrack   = p.filterTrack->load() * 0.01f;
-    v.filterFm      = p.filterFm->load() * 0.01f;
-    v.filterDrive   = p.filterDrive->load() * 0.01f;
+    v.slidePunch    = modValue (p.slidePunch) * 0.01f;
+    v.accentDecayMs = modValue (p.accentDecay);
+    v.softAttackMs  = modValue (p.softAttack);
+    v.filterTrack   = modValue (p.filterTrack) * 0.01f;
+    v.filterFm      = modValue (p.filterFm) * 0.01f;
+    v.filterDrive   = modValue (p.filterDrive) * 0.01f;
     v.subMode       = juce::jlimit (0, 2, (int) p.subOsc->load());
-    v.subLevel      = p.subLevel->load() * 0.01f;
+    v.subLevel      = modValue (p.subLevel) * 0.01f;
     v.muffler       = juce::jlimit (0, 2, (int) p.muffler->load());
-    v.analog        = p.analog->load() * 0.01f;
+    v.analog        = modValue (p.analog) * 0.01f;
 
     v.lfoShape  = juce::jlimit (0, 3, (int) p.lfoShape->load());
     v.lfoDest   = juce::jlimit (0, 2, (int) p.lfoDest->load());
@@ -233,8 +264,8 @@ void OctoCidAudioProcessor::updateVoiceParams() noexcept
     voice.setParams (v);
     voice.setAccentThreshold ((int) p.accentThr->load());
 
-    drive.setParams ((int) p.driveType->load(), p.driveAmt->load() * 0.01f,
-                     p.driveTone->load() * 0.01f, p.driveMix->load() * 0.01f);
+    drive.setParams ((int) p.driveType->load(), modValue (p.driveAmt) * 0.01f,
+                     modValue (p.driveTone) * 0.01f, modValue (p.driveMix) * 0.01f);
 
     const bool pre = p.drivePos->load() > 0.5f;
     if (pre != drivePreVca)
@@ -249,16 +280,16 @@ void OctoCidAudioProcessor::updateVoiceParams() noexcept
 void OctoCidAudioProcessor::updateFxParams() noexcept
 {
     // Effets
-    impactFx.setAmount (p.impact->load() * 0.01f);
-    smashFx.setAmount (p.smash->load() * 0.01f);
-    jetFx.setParams ((int) p.jetMode->load(), p.jetMix->load() * 0.01f, p.jetFb->load() * 0.0095f);
-    pumpFx.setDepth (p.pump->load() * 0.01f);
-    widthFx.setAmount (p.width->load() * 0.01f);
+    impactFx.setAmount (modValue (p.impact) * 0.01f);
+    smashFx.setAmount (modValue (p.smash) * 0.01f);
+    jetFx.setParams ((int) p.jetMode->load(), modValue (p.jetMix) * 0.01f, modValue (p.jetFb) * 0.0095f);
+    pumpFx.setDepth (modValue (p.pump) * 0.01f);
+    widthFx.setAmount (modValue (p.width) * 0.01f);
 
     // Punch + FX (fréquence de l'hôte)
-    punch.setAmount (p.punchAmt->load() * 0.01f);
-    punch.setAttackMs (p.punchAttack->load());
-    reverb.setParams (p.reverbMix->load() * 0.01f, p.reverbDecay->load() * 0.01f, p.reverbTone->load() * 0.01f);
+    punch.setAmount (modValue (p.punchAmt) * 0.01f);
+    punch.setAttackMs (modValue (p.punchAttack));
+    reverb.setParams (modValue (p.reverbMix) * 0.01f, modValue (p.reverbDecay) * 0.01f, modValue (p.reverbTone) * 0.01f);
     {
         double bpm = 120.0;
         if (auto* ph = getPlayHead())
@@ -267,7 +298,7 @@ void OctoCidAudioProcessor::updateFxParams() noexcept
                     bpm = *b;
         const int t = juce::jlimit (0, DelaySync::names.size() - 1, (int) p.delayTime->load());
         delay.setParams ((float) (DelaySync::beats[t] * 60.0 / juce::jlimit (20.0, 400.0, bpm)),
-                         p.delayFb->load() * 0.01f, p.delayMix->load() * 0.01f);
+                         modValue (p.delayFb) * 0.01f, modValue (p.delayMix) * 0.01f);
     }
 }
 
@@ -481,7 +512,7 @@ void OctoCidAudioProcessor::buildEvents (const juce::MidiBuffer& midi, int numSa
             sequencer.setTranspose (n - 60);
         heldKeys.set ((size_t) n);
     }
-    sequencer.setGate (p.seqGate->load() * 0.01);
+    sequencer.setGate (modValue (p.seqGate) * 0.01);
 
     // --- Position du DAW
     double bpm = 120.0, ppq = 0.0;
@@ -571,48 +602,62 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         drive.prepare (osRate);
     }
 
-    updateParams();
-    updateLfoSync();
-    buildEvents (midi, numSamples);
-
-    // Rendu par tranches de 64 échantillons, réglages relus à chaque tranche :
-    // un potard tourné répond en ~1 ms quelle que soit la taille du buffer du DAW.
-    float* left = buffer.getWritePointer (0);
-    constexpr int kParamSlice = 64;
-    for (int pos = 0; pos < numSamples; pos += kParamSlice)
-    {
-        if (pos > 0) updateVoiceParams();
-        renderChunk (left + pos, std::min ({ kParamSlice, maxBlockSize, numSamples - pos }), pos);
-    }
-        lfoView.store (voice.getLfoValue(), std::memory_order_relaxed);
-
-    // Punch (mono), puis delay et reverb (stéréo), puis volume et limiteur de sécurité
-    const bool stereo = buffer.getNumChannels() > 1;
-    float* right = stereo ? buffer.getWritePointer (1) : nullptr;
-
-    const bool usePunch = punch.isActive();
-    const bool useDelay = delay.isActive();
-    const bool useReverb = reverb.isActive();
-    const bool useImpact = impactFx.isActive(), useSmash = smashFx.isActive(), useJet = jetFx.isActive();
-    const bool usePump = pumpFx.isActive(), useWidth = widthFx.isActive();
-
-    // Position musicale pour le Jet et la Pompe : celle du DAW en lecture, sinon roue libre à son tempo
+    // Position musicale (Jet, Pompe, LFO) : celle du DAW en lecture, sinon roue libre à son tempo
     double bpm = 120.0;
+    bool playing = false;
     if (auto* ph = getPlayHead())
         if (auto pos = ph->getPosition())
         {
             if (auto b = pos->getBpm()) bpm = juce::jlimit (20.0, 400.0, *b);
             if (pos->getIsPlaying())
-                if (auto ppq = pos->getPpqPosition()) fxPpq = *ppq;
+                if (auto ppq = pos->getPpqPosition()) { fxPpq = *ppq; playing = true; }
         }
+    blockBpm = bpm;
     const double dPpq = bpm / 60.0 / hostSampleRate;
+
+    updateLfoSync();
+    buildEvents (midi, numSamples);
+
+    const bool stereo = buffer.getNumChannels() > 1;
+    float* left = buffer.getWritePointer (0);
+    float* right = stereo ? buffer.getWritePointer (1) : nullptr;
+
+    // Rendu par tranches de 64 échantillons : modulation, réglages de la voix et des effets
+    // relus à chaque tranche (un potard ou un LFO agit en ~1 ms quel que soit le buffer du DAW).
+    constexpr int kParamSlice = 64;
+    for (int pos = 0; pos < numSamples; pos += kParamSlice)
+    {
+        const int n = std::min ({ kParamSlice, maxBlockSize, numSamples - pos });
+        const double slicePpq = fxPpq + dPpq * (double) pos;
+        computeModulation (n, slicePpq, playing);
+        updateVoiceParams();
+        updateFxParams();
+        renderChunk (left + pos, n, pos);
+        processFx (left, right, pos, n, slicePpq, dPpq);
+    }
+    fxPpq += dPpq * (double) numSamples;
+    publishModulationView();
+
+    for (int ch = 2; ch < buffer.getNumChannels(); ++ch)
+        buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
+}
+
+// Punch (mono), puis Jet, delay, reverb, pompe, largeur (stéréo), volume et limiteur de sécurité
+void OctoCidAudioProcessor::processFx (float* left, float* right, int start, int n, double ppqStart, double dPpq) noexcept
+{
+    const bool usePunch = punch.isActive();
+    const bool useDelay = delay.isActive();
+    const bool useReverb = reverb.isActive();
+    const bool useImpact = impactFx.isActive(), useSmash = smashFx.isActive(), useJet = jetFx.isActive();
+    const bool usePump = pumpFx.isActive(), useWidth = widthFx.isActive();
     const double jetBeats = JetSync::beats[juce::jlimit (0, JetSync::names.size() - 1, (int) p.jetRate->load())];
     const double pumpBeats = PumpSync::beats[juce::jlimit (0, PumpSync::names.size() - 1, (int) p.pumpRate->load())];
 
-    outputGain.setTargetValue (juce::Decibels::decibelsToGain (p.volume->load(), -60.0f) + 1.0e-6f);
-    for (int i = 0; i < numSamples; ++i)
+    outputGain.setTargetValue (juce::Decibels::decibelsToGain (modValue (p.volume), -60.0f) + 1.0e-6f);
+    for (int k = 0; k < n; ++k)
     {
-        const double ppqNow = fxPpq + dPpq * (double) i;
+        const int i = start + k;
+        const double ppqNow = ppqStart + dPpq * (double) k;
         float l = left[i];
         if (useImpact) l = impactFx.process (l);
         if (usePunch)  l = punch.process (l);
@@ -632,7 +677,7 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         l = safetyLimit (l * g);
         r = safetyLimit (r * g);
 
-        if (stereo)
+        if (right != nullptr)
         {
             left[i] = l;
             right[i] = r;
@@ -640,11 +685,172 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         else
             left[i] = 0.5f * (l + r);   // sortie mono : on replie la stéréo des FX
     }
+}
 
-    fxPpq += dPpq * (double) numSamples;
+//==============================================================================
+// Modulation : 3 LFO -> 8 emplacements -> décalage (en valeur normalisée) par destination
+// L'ancien LFO (une seule destination) devient un LFO assignable : presets et anciens projets sonnent pareil
+void OctoCidAudioProcessor::migrateOldLfo()
+{
+    const float depth = p.lfoDepth->load();
+    if (depth < 0.01f) return;
 
-    for (int ch = 2; ch < buffer.getNumChannels(); ++ch)
-        buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
+    auto setReal = [this] (const juce::String& id, float v)
+    {
+        if (auto* prm = apvts.getParameter (id)) prm->setValueNotifyingHost (prm->convertTo0to1 (v));
+    };
+    int slot = -1;
+    bool lfoTaken[ModParams::numLfos] {};
+    for (int k = 0; k < ModParams::numSlots; ++k)
+    {
+        const int src = (int) slotRaw[(size_t) k].src->load();
+        if (src > 0) lfoTaken[src - 1] = true;
+        else if (slot < 0) slot = k;
+    }
+    if (slot < 0) return;
+    int lfo = 0;
+    while (lfo < ModParams::numLfos - 1 && lfoTaken[lfo]) ++lfo;
+
+    static const int shapeMap[4] = { octocid::ModLfo::Sine, octocid::ModLfo::Triangle, octocid::ModLfo::Square, octocid::ModLfo::SampleHold };
+    const int oldSync = juce::jlimit (0, LfoSync::names.size() - 1, (int) p.lfoSync->load());
+    int newSync = 0;
+    for (int i = 0; i < octocid::ModSync::count; ++i)
+        if (LfoSync::names[oldSync] == octocid::ModSync::names[i]) newSync = i;
+
+    setReal (ModParams::lfoId (lfo, "shape"), (float) shapeMap[juce::jlimit (0, 3, (int) p.lfoShape->load())]);
+    setReal (ModParams::lfoId (lfo, "sync"), (float) newSync);
+    setReal (ModParams::lfoId (lfo, "rate"), p.lfoRate->load());
+    setReal (ModParams::lfoId (lfo, "mode"), (float) (newSync > 0 ? octocid::ModLfo::TransportSync : octocid::ModLfo::Free));
+    setReal (ModParams::lfoId (lfo, "pol"), 0.0f);
+
+    // mêmes amplitudes que l'ancien LFO : Cutoff ±2,5 octaves, Résonance ±0,5, Pitch ±2 demi-tons (à 100 %)
+    const int dest = juce::jlimit (0, 2, (int) p.lfoDest->load());
+    const char* destId = dest == 0 ? "cutoff" : (dest == 1 ? "resonance" : "tune");
+    const float scale = dest == 0 ? 2.5f / 2.931652f : (dest == 1 ? 0.5f : 2.0f / 24.0f);
+    setReal (ModParams::slotId (slot, "src"), (float) (lfo + 1));
+    setReal (ModParams::slotId (slot, "dst"), (float) ModParams::destIndex (destId));
+    setReal (ModParams::slotId (slot, "amt"), depth * scale);
+    setReal ("lfodepth", 0.0f);
+}
+
+void OctoCidAudioProcessor::setupModulation()
+{
+    for (int d = 0; d < ModParams::numDests; ++d)
+    {
+        modDest[(size_t) d].param = nullptr; modDest[(size_t) d].raw = nullptr;
+        if (d == 0) continue;
+        modDest[(size_t) d].param = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ModParams::dests[d].id));
+        modDest[(size_t) d].raw = apvts.getRawParameterValue (ModParams::dests[d].id);
+        jassert (modDest[(size_t) d].param != nullptr);
+    }
+    for (int i = 0; i < ModParams::numLfos; ++i)
+    {
+        auto& r = lfoRaw[(size_t) i];
+        r.shape = apvts.getRawParameterValue (ModParams::lfoId (i, "shape"));
+        r.rate = apvts.getRawParameterValue (ModParams::lfoId (i, "rate"));
+        r.sync = apvts.getRawParameterValue (ModParams::lfoId (i, "sync"));
+        r.mode = apvts.getRawParameterValue (ModParams::lfoId (i, "mode"));
+        r.phase = apvts.getRawParameterValue (ModParams::lfoId (i, "phase"));
+        r.delay = apvts.getRawParameterValue (ModParams::lfoId (i, "delay"));
+        r.fade = apvts.getRawParameterValue (ModParams::lfoId (i, "fade"));
+        r.smooth = apvts.getRawParameterValue (ModParams::lfoId (i, "smooth"));
+        r.pol = apvts.getRawParameterValue (ModParams::lfoId (i, "pol"));
+        lfoRateDest[(size_t) i] = ModParams::destIndex (ModParams::lfoId (i, "rate"));
+    }
+    cutoffDest = ModParams::destIndex ("cutoff");
+    for (int k = 0; k < ModParams::numSlots; ++k)
+    {
+        slotRaw[(size_t) k].src = apvts.getRawParameterValue (ModParams::slotId (k, "src"));
+        slotRaw[(size_t) k].dst = apvts.getRawParameterValue (ModParams::slotId (k, "dst"));
+        slotRaw[(size_t) k].amt = apvts.getRawParameterValue (ModParams::slotId (k, "amt"));
+    }
+}
+
+void OctoCidAudioProcessor::resetModulation()
+{
+    for (int i = 0; i < ModParams::numLfos; ++i) modLfo[(size_t) i].reset ((uint32_t) (i + 1) * 7919u);
+    modOffset.fill (0.0f);
+    anyModulation = false;
+    lastModNoteCount = noteCount.load (std::memory_order_relaxed);
+}
+
+void OctoCidAudioProcessor::computeModulation (int numSamples, double ppq, bool playing) noexcept
+{
+    // Une note détachée (pas un slide) relance les LFO en mode Note / Un coup / Aléatoire et leur délai / fondu
+    const int nc = noteCount.load (std::memory_order_relaxed);
+    const bool newNote = nc != lastModNoteCount && ! lastSlide.load (std::memory_order_relaxed);
+    lastModNoteCount = nc;
+
+    bool used[ModParams::numLfos] {};
+    for (auto& sr : slotRaw)
+    {
+        const int src = (int) sr.src->load();
+        if (src > 0 && src <= ModParams::numLfos && (int) sr.dst->load() > 0 && std::abs (sr.amt->load()) > 1.0e-4f)
+            used[src - 1] = true;
+    }
+
+    for (int i = 0; i < ModParams::numLfos; ++i)
+    {
+        auto& r = lfoRaw[(size_t) i];
+        octocid::ModLfo::Settings st;
+        st.shape = (int) r.shape->load();
+        st.mode = (int) r.mode->load();
+        st.sync = (int) r.sync->load();
+        st.rateHz = modValueIndex (lfoRateDest[(size_t) i], r.rate);
+        st.phase01 = r.phase->load() / 360.0f;
+        st.delaySec = r.delay->load() * 0.001f;
+        st.fadeSec = r.fade->load() * 0.001f;
+        st.smooth01 = r.smooth->load() * 0.01f;
+        st.unipolar = r.pol->load() > 0.5f;
+        if (newNote) modLfo[(size_t) i].noteOn (st);
+        lfoValue[(size_t) i] = modLfo[(size_t) i].advance (st, numSamples, hostSampleRate, ppq, blockBpm, playing);
+        lfoUsed[(size_t) i] = used[i];
+    }
+
+    modOffset.fill (0.0f);
+    anyModulation = false;
+    for (auto& sr : slotRaw)
+    {
+        const int src = (int) sr.src->load(), dst = (int) sr.dst->load();
+        const float amt = sr.amt->load() * 0.01f;
+        if (src <= 0 || src > ModParams::numLfos || dst <= 0 || dst >= ModParams::numDests || std::abs (amt) < 1.0e-6f) continue;
+        modOffset[(size_t) dst] += amt * lfoValue[(size_t) (src - 1)];
+        anyModulation = true;
+    }
+}
+
+float OctoCidAudioProcessor::modValueIndex (int d, std::atomic<float>* raw) const noexcept
+{
+    const float v = raw->load();
+    if (! anyModulation || d <= 0) return v;
+    const float off = modOffset[(size_t) d];
+    if (off == 0.0f) return v;
+    auto* prm = modDest[(size_t) d].param;
+    return prm->convertFrom0to1 (juce::jlimit (0.0f, 1.0f, prm->convertTo0to1 (v) + off));
+}
+
+float OctoCidAudioProcessor::modValue (std::atomic<float>* raw) const noexcept
+{
+    if (! anyModulation) return raw->load();
+    for (int d = 1; d < ModParams::numDests; ++d)
+        if (modDest[(size_t) d].raw == raw)
+            return modValueIndex (d, raw);
+    return raw->load();
+}
+
+void OctoCidAudioProcessor::publishModulationView() noexcept
+{
+    float snail = 0.0f; int n = 0;
+    for (int i = 0; i < ModParams::numLfos; ++i)
+    {
+        lfoValueView[(size_t) i].store (lfoValue[(size_t) i], std::memory_order_relaxed);
+        lfoPhaseView[(size_t) i].store (modLfo[(size_t) i].cyclePosition(), std::memory_order_relaxed);
+        if (lfoUsed[(size_t) i]) { snail += lfoValue[(size_t) i]; ++n; }
+    }
+    for (int d = 0; d < ModParams::numDests; ++d)
+        modOffsetView[(size_t) d].store (modOffset[(size_t) d], std::memory_order_relaxed);
+    // l'escargot fait onduler ses pédoncules avec les LFO utilisés (ou l'ancien LFO)
+    lfoView.store (n > 0 ? snail / (float) n : voice.getLfoValue(), std::memory_order_relaxed);
 }
 
 //==============================================================================
@@ -779,6 +985,7 @@ void OctoCidAudioProcessor::applyProgram (int index)
             if (auto* rp = apvts.getParameter (e->getStringAttribute ("id")))
                 if (! keptParams().contains (rp->getParameterID()))
                     rp->setValueNotifyingHost (rp->convertTo0to1 ((float) e->getDoubleAttribute ("value")));
+        migrateOldLfo();
         return;
     }
 
@@ -798,6 +1005,7 @@ void OctoCidAudioProcessor::applyProgram (int index)
         if (auto* rp = apvts.getParameter (v.id))
             rp->setValueNotifyingHost (rp->convertTo0to1 (v.v));
     }
+    migrateOldLfo();
 }
 
 //==============================================================================
@@ -851,6 +1059,7 @@ void OctoCidAudioProcessor::setStateInformation (const void* data, int sizeInByt
             tree.removeChild (tree.getChildWithName ("Patterns"), nullptr);
 
             apvts.replaceState (tree);
+            migrateOldLfo();     // projet d'avant la v1.4 : l'ancien LFO devient un LFO assignable
         }
 }
 
