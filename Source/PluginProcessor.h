@@ -9,6 +9,7 @@
 #include "dsp/Fx.h"
 #include "dsp/FxPlus.h"
 #include "dsp/ModLfo.h"
+#include "dsp/LfoShape.h"
 #include <array>
 #include "seq/Sequencer.h"
 #include "seq/PatternIO.h"
@@ -80,6 +81,11 @@ public:
     // Modulation, pour l'interface : sortie et position des 3 LFO, décalage de chaque destination
     std::array<std::atomic<float>, ModParams::numLfos> lfoValueView {}, lfoPhaseView {};
     std::array<std::atomic<float>, ModParams::numDests> modOffsetView {};
+
+    // Formes dessinées des LFO (fil de l'interface) ; setLfoShape les transmet au thread audio
+    const octocid::LfoShape& getLfoShape (int lfo) const { return lfoShapes[(size_t) juce::jlimit (0, ModParams::numLfos - 1, lfo)]; }
+    void setLfoShape (int lfo, const octocid::LfoShape& shape);
+    std::atomic<int> lfoShapeVersion { 0 };     // change à chaque modification (pour l'interface)
     std::atomic<int>  seqStep { -1 };            // pas en cours (-1 : arrêté)
     std::atomic<int>  seqActivePattern { 0 };    // pattern qui joue
     std::atomic<int>  seqQueuedPattern { 0 };    // pattern qui jouera au prochain cycle
@@ -126,6 +132,14 @@ private:
     std::array<LfoRaw, ModParams::numLfos> lfoRaw {};
     std::array<SlotRaw, ModParams::numSlots> slotRaw {};
     std::array<octocid::ModLfo, ModParams::numLfos> modLfo {};
+    // formes : copie de l'interface -> table « en attente » (verrou bref) -> table audio
+    std::array<octocid::LfoShape, ModParams::numLfos> lfoShapes {};
+    std::array<std::array<float, octocid::LfoShape::tableSize>, ModParams::numLfos> pendingTables {}, audioTables {};
+    std::array<std::atomic<bool>, ModParams::numLfos> tableDirty {};
+    juce::SpinLock tableLock;
+    void pullLfoTables() noexcept;
+    void writeShapesTo (juce::ValueTree& tree) const;
+    void readShapesFrom (const juce::ValueTree& tree);
     std::array<float, ModParams::numLfos> lfoValue {};
     std::array<bool, ModParams::numLfos> lfoUsed {};
     std::array<int, ModParams::numLfos> lfoRateDest {};

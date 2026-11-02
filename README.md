@@ -72,8 +72,13 @@ avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton 
   - Vitesse libre (0,02 à 30 Hz) ou calée sur le tempo (4 mesures à 1/32, pointé, triolet) ;
   - 5 modes : *Libre*, *Note* (repart à chaque note détachée, pas sur un slide), *Synchro* (calé sur la position
     du DAW : identique à chaque lecture), *Un coup* (un seul cycle, comme une enveloppe), *Aléatoire* (phase au hasard) ;
-  - Phase de départ, Délai puis Fondu d'entrée, Lissage (sans saut quand le LFO repart), bipolaire / unipolaire.
-  - **Assigner** : attraper l'écran du LFO et le lâcher sur un potard, ou clic droit sur un potard > *Moduler par LFO*.
+  - Phase de départ, Délai puis Montée (fondu d'entrée), Lissage (sans saut quand le LFO repart), bipolaire / unipolaire.
+  - **Formes dessinées à la souris** (façon Serum / Vital) : double-clic pour ajouter ou supprimer un point, glisser un
+    point pour le déplacer (aimanté à la grille, Ctrl : sans aimant, Maj : réglage fin), glisser une courbe pour la bomber.
+    **Grand éditeur** (bouton du panneau LFO) : 16 formes prêtes (pompe, rebond, escaliers, porte trance, wobble…),
+    grille X / Y, aimant, pinceau *Marches* / *Rampes* (comme un step séquenceur), inverser, miroir, annuler, copier / coller.
+    Les formes sont gardées avec le projet et dans les presets utilisateur.
+  - **Assigner** : attraper un onglet 1 / 2 / 3 (ou « ✥ LFO n ») et le lâcher sur un potard, ou clic droit sur un potard > *Moduler par LFO*.
     Un arc coloré montre la plage balayée, un point blanc suit la valeur réelle. **Alt + glisser** sur le potard
     règle la quantité. La page **MOD** liste les 8 emplacements (source, destination, quantité, ×).
   - Les presets faits avec l'ancien LFO sont convertis automatiquement.
@@ -158,3 +163,4 @@ Chaque push sur `main` lance GitHub Actions (Windows) et publie deux artefacts :
 6. Escargot animé ✅
 7. Presets, banques de patterns, finitions ✅ (pluginval : voir ci-dessous)
 8. 3 LFO assignables + page MOD ✅ (v1.4.0)
+9. LFO dessinés à la souris + grand éditeur ✅ (v1.5.0)

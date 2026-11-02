@@ -31,6 +31,8 @@ OctoCidAudioProcessor::OctoCidAudioProcessor()
     p.jetRate = raw (jetRate); p.jetFb = raw (jetFb); p.pump = raw (ParamIDs::pump); p.pumpRate = raw (pumpRate);
     p.width = raw (ParamIDs::width);
     setupModulation();
+    for (int i = 0; i < ModParams::numLfos; ++i) setLfoShape (i, octocid::LfoShape::preset (0));
+    pullLfoTables();
 
     // 8 patterns de démo au départ
     masterBank = octocid::PatternTools::demoBank();
@@ -781,6 +783,7 @@ void OctoCidAudioProcessor::computeModulation (int numSamples, double ppq, bool 
     const bool newNote = nc != lastModNoteCount && ! lastSlide.load (std::memory_order_relaxed);
     lastModNoteCount = nc;
 
+    pullLfoTables();
     bool used[ModParams::numLfos] {};
     for (auto& sr : slotRaw)
     {
@@ -802,6 +805,8 @@ void OctoCidAudioProcessor::computeModulation (int numSamples, double ppq, bool 
         st.fadeSec = r.fade->load() * 0.001f;
         st.smooth01 = r.smooth->load() * 0.01f;
         st.unipolar = r.pol->load() > 0.5f;
+        st.table = audioTables[(size_t) i].data();
+        st.tableSize = octocid::LfoShape::tableSize;
         if (newNote) modLfo[(size_t) i].noteOn (st);
         lfoValue[(size_t) i] = modLfo[(size_t) i].advance (st, numSamples, hostSampleRate, ppq, blockBpm, playing);
         lfoUsed[(size_t) i] = used[i];
@@ -816,6 +821,52 @@ void OctoCidAudioProcessor::computeModulation (int numSamples, double ppq, bool 
         if (src <= 0 || src > ModParams::numLfos || dst <= 0 || dst >= ModParams::numDests || std::abs (amt) < 1.0e-6f) continue;
         modOffset[(size_t) dst] += amt * lfoValue[(size_t) (src - 1)];
         anyModulation = true;
+    }
+}
+
+void OctoCidAudioProcessor::pullLfoTables() noexcept
+{
+    for (int i = 0; i < ModParams::numLfos; ++i)
+        if (tableDirty[(size_t) i].load (std::memory_order_acquire))
+        {
+            const juce::SpinLock::ScopedTryLockType tl (tableLock);
+            if (! tl.isLocked()) return;                 // réessaie à la tranche suivante, sans attendre
+            audioTables[(size_t) i] = pendingTables[(size_t) i];
+            tableDirty[(size_t) i].store (false, std::memory_order_release);
+        }
+}
+
+void OctoCidAudioProcessor::setLfoShape (int lfo, const octocid::LfoShape& shape)
+{
+    if (lfo < 0 || lfo >= ModParams::numLfos) return;
+    lfoShapes[(size_t) lfo] = shape;
+    std::array<float, octocid::LfoShape::tableSize> t;
+    shape.render (t.data());
+    {
+        const juce::SpinLock::ScopedLockType sl (tableLock);
+        pendingTables[(size_t) lfo] = t;
+    }
+    tableDirty[(size_t) lfo].store (true, std::memory_order_release);
+    ++lfoShapeVersion;
+}
+
+void OctoCidAudioProcessor::writeShapesTo (juce::ValueTree& tree) const
+{
+    tree.removeChild (tree.getChildWithName ("LfoShapes"), nullptr);
+    juce::ValueTree t ("LfoShapes");
+    for (int i = 0; i < ModParams::numLfos; ++i)
+        t.setProperty ("lfo" + juce::String (i + 1), lfoShapes[(size_t) i].toString(), nullptr);
+    tree.appendChild (t, nullptr);
+}
+
+void OctoCidAudioProcessor::readShapesFrom (const juce::ValueTree& tree)
+{
+    const auto t = tree.getChildWithName ("LfoShapes");
+    for (int i = 0; i < ModParams::numLfos; ++i)
+    {
+        octocid::LfoShape s;
+        if (t.isValid() && octocid::LfoShape::fromString (t.getProperty ("lfo" + juce::String (i + 1)).toString(), s))
+            setLfoShape (i, s);
     }
 }
 
@@ -934,6 +985,12 @@ bool OctoCidAudioProcessor::saveUserPreset (const juce::String& rawName)
                 e->setAttribute ("id", rp->getParameterID());
                 e->setAttribute ("value", (double) rp->convertFrom0to1 (rp->getValue()));
             }
+    for (int i = 0; i < ModParams::numLfos; ++i)
+    {
+        auto* e = xml.createNewChildElement ("Shape");
+        e->setAttribute ("lfo", i);
+        e->setAttribute ("points", lfoShapes[(size_t) i].toString());
+    }
     const auto folder = userPresetFolder();
     if (! folder.createDirectory()) return false;
     const auto file = folder.getChildFile (name + ".ocpreset");
@@ -985,6 +1042,12 @@ void OctoCidAudioProcessor::applyProgram (int index)
             if (auto* rp = apvts.getParameter (e->getStringAttribute ("id")))
                 if (! keptParams().contains (rp->getParameterID()))
                     rp->setValueNotifyingHost (rp->convertTo0to1 ((float) e->getDoubleAttribute ("value")));
+        for (auto* e : xml->getChildWithTagNameIterator ("Shape"))
+        {
+            octocid::LfoShape sh;
+            if (octocid::LfoShape::fromString (e->getStringAttribute ("points"), sh))
+                setLfoShape (e->getIntAttribute ("lfo"), sh);
+        }
         migrateOldLfo();
         return;
     }
@@ -1032,6 +1095,7 @@ void OctoCidAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // Les 8 patterns voyagent avec le projet
     state.removeChild (state.getChildWithName ("Patterns"), nullptr);
     state.appendChild (octocid::PatternIO::toTree (getBank()), nullptr);
+    writeShapesTo (state);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -1057,6 +1121,8 @@ void OctoCidAudioProcessor::setStateInformation (const void* data, int sizeInByt
             if (octocid::PatternIO::fromTree (tree.getChildWithName ("Patterns"), bank))
                 setBank (bank);
             tree.removeChild (tree.getChildWithName ("Patterns"), nullptr);
+            readShapesFrom (tree);
+            tree.removeChild (tree.getChildWithName ("LfoShapes"), nullptr);
 
             apvts.replaceState (tree);
             migrateOldLfo();     // projet d'avant la v1.4 : l'ancien LFO devient un LFO assignable

@@ -125,7 +125,7 @@ namespace ModParams
     inline juce::String lfoId (int lfo, const char* what) { return "l" + juce::String (lfo + 1) + what; }   // ex. "l1rate"
     inline juce::String slotId (int slot, const char* what) { return "m" + juce::String (slot + 1) + what; } // ex. "m1amt"
 
-    inline const juce::StringArray shapeNames { "Sinus", "Triangle", "Scie +", "Scie -", "Carre", "S&H", "Aleatoire" };
+    inline const juce::StringArray shapeNames { "Sinus", "Triangle", "Scie +", "Scie -", "Carre", "S&H", "Aleatoire", "Dessin" };
     inline const juce::StringArray modeNames  { "Libre", "Note", "Synchro", "Un coup", "Aleatoire" };
     inline const juce::StringArray sourceNames { "-", "LFO 1", "LFO 2", "LFO 3" };
 

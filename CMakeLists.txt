@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OctoCid VERSION 1.4.0 LANGUAGES C CXX)
+project(OctoCid VERSION 1.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,6 +52,7 @@ target_sources(OctoCid PRIVATE
     Source/ui/OctoLookAndFeel.h
     Source/ui/Widgets.h
     Source/ui/LfoPanel.h
+    Source/ui/LfoEditor.h
     Source/ui/Mascot.h
     Source/ui/Snail.h
     Source/Params.h
@@ -67,6 +68,7 @@ target_sources(OctoCid PRIVATE
     Source/dsp/Fx.h
     Source/dsp/FxPlus.h
     Source/dsp/ModLfo.h
+    Source/dsp/LfoShape.h
     Source/seq/Pattern.h
     Source/seq/PatternIO.h
     Source/seq/Sequencer.h

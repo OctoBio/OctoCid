@@ -70,8 +70,10 @@ private:
         void resized() override;
         void setPage (int newPage);
         int getPage() const noexcept { return page; }
+        void setLfoPage (juce::Component* c) { lfoPage = c; addChildComponent (c); setPage (page); }
     private:
-        int page = 0;   // 0 : SLIME MODS + PUNCH/FX, 1 : EFFETS, 2 : MOD
+        int page = 0;   // 0 : SLIME MODS + PUNCH/FX, 1 : EFFETS, 2 : MOD, 3 : GRAND ÉDITEUR LFO
+        juce::Component* lfoPage = nullptr;
         std::vector<std::unique_ptr<juce::Component>> slimeItems, fxItems, modItems;
         std::vector<std::unique_ptr<juce::Component>> hitItems, jetItems, pumpItems, stereoItems;
         std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> comboAttachments;
@@ -80,6 +82,7 @@ private:
     };
 
     OctoCidAudioProcessor& processor;
+    LfoEditShared lfoShared;            // avant tout ce qui l'utilise (détruit en dernier)
     OctoLookAndFeel lnf;
     Content content { *this };
     std::unique_ptr<juce::TooltipWindow> tooltips;
@@ -95,6 +98,7 @@ private:
     std::unique_ptr<octoui::Segmented> driveType, drivePos;
     std::unique_ptr<octoui::Knob> drive, driveTone, driveMix;
     std::unique_ptr<LfoPanel> lfos;
+    std::unique_ptr<LfoBigPage> lfoBig;
     void setSlot (int slot, int src, int dst, float amountPercent);
     juce::Array<octoui::Knob*> allKnobs;
 

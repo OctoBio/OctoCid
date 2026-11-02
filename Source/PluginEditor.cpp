@@ -223,6 +223,7 @@ void OctoCidAudioProcessorEditor::Drawer::setPage (int newPage)
     for (auto* v : { &hitItems, &jetItems, &pumpItems, &stereoItems })
         for (auto& c : *v) c->setVisible (page == 1);
     for (auto& c : modItems) c->setVisible (page == 2);
+    if (lfoPage != nullptr) lfoPage->setVisible (page == 3);
     resized();
     repaint();
 }
@@ -260,12 +261,17 @@ void OctoCidAudioProcessorEditor::Drawer::paint (juce::Graphics& g)
     auto r = getLocalBounds().toFloat().reduced (1.0f);
     const float split = r.getWidth() * 0.63f;
     const auto org = getPosition().toFloat();
+    if (page == 3)
+    {
+        octoui::drawPanel (g, r, juce::String::fromUTF8 ("LFO — GRAND ÉDITEUR"), true, org);
+        return;
+    }
     if (page == 2)
     {
         octoui::drawPanel (g, r, "MODULATIONS", true, org);
         g.setColour (OctoColours::cream.withAlpha (0.6f));
         g.setFont (OctoLook::monoFont (10.5f));
-        g.drawText (juce::String::fromUTF8 ("glisser l'écran d'un LFO sur un potard  |  clic droit sur un potard  |  Alt + glisser : quantité"),
+        g.drawText (juce::String::fromUTF8 ("glisser un onglet LFO sur un potard  |  clic droit sur un potard  |  Alt + glisser : quantité"),
                     r.withTrimmedTop (4.0f).withHeight (14.0f).withTrimmedRight (14.0f), juce::Justification::centredRight);
         return;
     }
@@ -296,6 +302,8 @@ void OctoCidAudioProcessorEditor::Drawer::resized()
         auto area = effectPanel (rf, i).toNearestInt().reduced (6, 0).withTrimmedTop (26).withTrimmedBottom (8);
         layoutGrid (area, *groups[i], (int) groups[i]->size());
     }
+
+    if (lfoPage != nullptr) lfoPage->setBounds (getLocalBounds());
 
     // MOD : 2 colonnes de 4 lignes
     auto m = getLocalBounds().reduced (14, 0).withTrimmedTop (24).withTrimmedBottom (8);
@@ -402,8 +410,12 @@ OctoCidAudioProcessorEditor::OctoCidAudioProcessorEditor (OctoCidAudioProcessor&
         add (*c);
 
     // --- 3 LFO assignables (onglets)
-    lfos = std::make_unique<LfoPanel> (st, processor.lfoValueView, processor.lfoPhaseView);
+    lfos = std::make_unique<LfoPanel> (processor, lfoShared);
+    lfos->onOpenBig = [this] { toggleDrawer (3); };
     add (*lfos);
+    lfoBig = std::make_unique<LfoBigPage> (processor, lfoShared);
+    lfoBig->onClose = [this] { toggleDrawer (3); };
+    drawer.setLfoPage (lfoBig.get());
 
     add (mascot);
     {
@@ -584,6 +596,7 @@ void OctoCidAudioProcessorEditor::timerCallback()
 
     // LFO : écran animé et anneaux de modulation des potards
     lfos->tick();
+    lfoBig->tick();
     for (auto* k : allKnobs)
         if (k->isShowing()) k->modulationTick();
 }

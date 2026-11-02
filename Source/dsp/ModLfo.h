@@ -34,7 +34,7 @@ namespace octocid
     class ModLfo
     {
     public:
-        enum Shape { Sine, Triangle, SawUp, SawDown, Square, SampleHold, SmoothRandom };
+        enum Shape { Sine, Triangle, SawUp, SawDown, Square, SampleHold, SmoothRandom, Custom };
         enum Mode  { Free, NoteRetrig, TransportSync, OneShot, RandomPhase };
 
         struct Settings
@@ -42,6 +42,8 @@ namespace octocid
             int shape = Sine, mode = Free, sync = 0;
             float rateHz = 2.0f, phase01 = 0.0f, delaySec = 0.0f, fadeSec = 0.0f, smooth01 = 0.0f;
             bool unipolar = false;
+            const float* table = nullptr;   // forme dessinée (1024 valeurs -1..1) pour Custom
+            int tableSize = 0;
         };
 
         void reset (uint32_t seed) noexcept
@@ -99,6 +101,16 @@ namespace octocid
                 case SawDown:      v = 1.0f - 2.0f * x; break;
                 case Square:       v = x < 0.5f ? 1.0f : -1.0f; break;
                 case SampleHold:   v = curRand; break;
+                case Custom:
+                    if (s.table != nullptr && s.tableSize > 1)
+                    {
+                        const float fi = x * (float) s.tableSize;
+                        const int i0 = std::min ((int) fi, s.tableSize - 1);
+                        const int i1 = (i0 + 1) % s.tableSize;
+                        v = s.table[i0] + (s.table[i1] - s.table[i0]) * (fi - (float) i0);
+                    }
+                    else v = 0.0f;
+                    break;
                 case SmoothRandom: { const float t = 0.5f - 0.5f * std::cos (3.14159265f * x); v = prevRand + (curRand - prevRand) * t; break; }
                 default:           v = std::sin (6.28318531f * x); break;
             }

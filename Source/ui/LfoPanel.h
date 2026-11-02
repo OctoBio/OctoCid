@@ -2,62 +2,152 @@
 
 #include <JuceHeader.h>
 #include "Widgets.h"
+#include "LfoEditor.h"
 #include "../Params.h"
 #include "../dsp/ModLfo.h"
 #include <array>
 
 //==============================================================================
-// Panneau LFO : 3 LFO assignables, un onglet par LFO (même place que l'ancien LFO).
-//  - écran animé de la forme d'onde : on l'attrape et on le lâche sur un potard
-//    pour créer une modulation ; clic sur « ± » : bipolaire / unipolaire ;
-//  - Forme, Synchro, Mode ; Vitesse, Phase, Délai, Fondu, Lissage.
+// 3 LFO assignables.
+//  - Panneau LFO (à droite de l'escargot) : onglets 1 / 2 / 3, éditeur de forme à la
+//    souris, Forme / Synchro / Mode, Vitesse, Phase, et le bouton du GRAND ÉDITEUR.
+//  - Grand éditeur (page du tiroir) : grande zone de dessin, formes prêtes, grille,
+//    aimant, pinceau (marches / rampes), inverser, miroir, annuler, et tous les réglages.
+//  - Pour moduler un potard : attraper un onglet (ou « ✥ LFO n ») et le lâcher dessus.
 //==============================================================================
-class LfoPanel : public juce::Component
+namespace lfoui
 {
-public:
-    using Views = std::array<std::atomic<float>, ModParams::numLfos>;
-
-    LfoPanel (juce::AudioProcessorValueTreeState& s, Views& values, Views& phases)
-        : state (s), lfoValues (values), lfoPhases (phases)
+    // Onglets 1 / 2 / 3 : clic = choisir, glisser = assigner à un potard
+    class Tabs : public juce::Component, public juce::SettableTooltipClient
     {
-        addAndMakeVisible (tabs);
-        tabs.onChange = [this] (int i) { select (i); };
-        for (int i = 0; i < ModParams::numLfos; ++i)
+    public:
+        explicit Tabs (LfoEditShared& s, bool isVertical = false) : shared (s), vertical (isVertical)
         {
-            auto& c = controls[(size_t) i];
+            setTooltip (juce::String::fromUTF8 ("Clic : choisir le LFO. Glisser un onglet sur un potard : le moduler."));
+        }
+        void paint (juce::Graphics& g) override
+        {
+            for (int i = 0; i < 3; ++i)
+            {
+                auto r = cell (i).reduced (1.5f);
+                const auto col = octoui::ModHost::lfoColour (i);
+                const bool on = i == shared.selected;
+                g.setColour (on ? col : OctoColours::panelHi.withAlpha (0.9f));
+                g.fillRect (r);
+                g.setColour (on ? col.brighter (0.4f) : col.withAlpha (0.8f));
+                g.drawRect (r, 1.5f);
+                g.setColour (on ? OctoColours::ink : OctoColours::cream);
+                g.setFont (OctoLook::monoFont (12.0f));
+                g.drawText (juce::String (i + 1), r, juce::Justification::centred);
+            }
+        }
+        void mouseDown (const juce::MouseEvent& e) override { pressed = indexAt (e.position); started = false; }
+        void mouseDrag (const juce::MouseEvent& e) override
+        {
+            if (started || pressed < 0 || e.getDistanceFromDragStart() < 5) return;
+            if (auto* dc = juce::DragAndDropContainer::findParentDragContainerFor (this))
+            {
+                started = true;
+                juce::Image img (juce::Image::ARGB, 64, 22, true);
+                {
+                    juce::Graphics g (img);
+                    g.setColour (octoui::ModHost::lfoColour (pressed)); g.fillRoundedRectangle (0, 0, 64, 22, 4);
+                    g.setColour (OctoColours::ink); g.setFont (OctoLook::monoFont (12.0f));
+                    g.drawText ("LFO " + juce::String (pressed + 1), 0, 0, 64, 22, juce::Justification::centred);
+                }
+                dc->startDragging ("octolfo:" + juce::String (pressed), this, juce::ScaledImage (img), true);
+            }
+        }
+        void mouseUp (const juce::MouseEvent&) override { if (! started && pressed >= 0) shared.select (pressed); }
+    private:
+        juce::Rectangle<float> cell (int i) const
+        {
+            auto b = getLocalBounds().toFloat();
+            return vertical ? juce::Rectangle<float> (b.getX(), b.getHeight() / 3.0f * (float) i, b.getWidth(), b.getHeight() / 3.0f)
+                            : juce::Rectangle<float> (b.getWidth() / 3.0f * (float) i, b.getY(), b.getWidth() / 3.0f, b.getHeight());
+        }
+        int indexAt (juce::Point<float> p) const { for (int i = 0; i < 3; ++i) if (cell (i).contains (p)) return i; return -1; }
+        LfoEditShared& shared;
+        bool vertical;
+        int pressed = -1;
+        bool started = false;
+    };
+
+    // Les réglages d'un LFO (on en crée un jeu par LFO, seul celui choisi est visible)
+    struct Controls
+    {
+        juce::ComboBox shape, sync, mode, pol;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> shapeAtt, syncAtt, modeAtt, polAtt;
+        std::unique_ptr<octoui::Knob> rate, phase, delay, fade, smooth;
+
+        void build (juce::Component& owner, juce::AudioProcessorValueTreeState& st, int i, bool full)
+        {
             auto combo = [&] (juce::ComboBox& box, const char* what, const juce::StringArray& items, const juce::String& tip,
                               std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>& att)
             {
                 box.addItemList (items, 1);
                 box.setTooltip (tip);
-                att = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ModParams::lfoId (i, what), box);
-                addChildComponent (box);
+                att = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (st, ModParams::lfoId (i, what), box);
+                owner.addChildComponent (box);
             };
             juce::StringArray syncNames;
             for (auto* n : octocid::ModSync::names) syncNames.add (juce::String::fromUTF8 (n));
-            combo (c.shape, "shape", ModParams::shapeNames, "Forme du LFO", c.shapeAtt);
-            combo (c.sync, "sync", syncNames, juce::String::fromUTF8 ("Libre (Vitesse en Hz) ou calé sur le tempo"), c.syncAtt);
-            combo (c.mode, "mode", ModParams::modeNames,
+            combo (shape, "shape", ModParams::shapeNames, juce::String::fromUTF8 ("Forme (Dessin : la forme que tu as dessinée)"), shapeAtt);
+            combo (sync, "sync", syncNames, juce::String::fromUTF8 ("Hz : vitesse libre ; sinon calée sur le tempo"), syncAtt);
+            combo (mode, "mode", ModParams::modeNames,
                    juce::String::fromUTF8 ("Libre : tourne en continu | Note : repart à chaque note détachée | Synchro : calé sur la "
                                            "lecture du DAW | Un coup : un seul cycle (enveloppe) | Aléatoire : phase au hasard à chaque note"),
-                   c.modeAtt);
+                   modeAtt);
+            if (full) combo (pol, "pol", juce::StringArray { "Bipolaire", "Unipolaire" }, juce::String::fromUTF8 ("Bipolaire : autour du réglage ; unipolaire : au-dessus"), polAtt);
             auto knob = [&] (std::unique_ptr<octoui::Knob>& k, const char* what, const juce::String& name)
             {
-                k = std::make_unique<octoui::Knob> (state, juce::ParameterID { ModParams::lfoId (i, what), 1 }, name);
-                addChildComponent (*k);
+                k = std::make_unique<octoui::Knob> (st, juce::ParameterID { ModParams::lfoId (i, what), 1 }, name);
+                owner.addChildComponent (*k);
             };
-            knob (c.rate, "rate", "Vitesse");
-            knob (c.phase, "phase", "Phase");
-            knob (c.delay, "delay", juce::String::fromUTF8 ("Délai"));
-            knob (c.fade, "fade", "Fondu");
-            knob (c.smooth, "smooth", "Lissage");
+            knob (rate, "rate", "Vitesse");
+            knob (phase, "phase", "Phase");
+            if (full)
+            {
+                knob (delay, "delay", juce::String::fromUTF8 ("Délai"));
+                knob (fade, "fade", juce::String::fromUTF8 ("Montée"));
+                knob (smooth, "smooth", "Lissage");
+            }
         }
-        addAndMakeVisible (display);
-        display.owner = this;
-        select (0);
+        juce::Array<juce::Component*> all()
+        {
+            juce::Array<juce::Component*> a { &shape, &sync, &mode };
+            if (polAtt != nullptr) a.add (&pol);
+            for (auto* k : { rate.get(), phase.get(), delay.get(), fade.get(), smooth.get() }) if (k != nullptr) a.add (k);
+            return a;
+        }
+        void show (bool v) { for (auto* c : all()) c->setVisible (v); }
+        void dimRate (juce::AudioProcessorValueTreeState& st, int i)
+        {
+            const bool free = st.getRawParameterValue (ModParams::lfoId (i, "sync"))->load() < 0.5f;
+            rate->setAlpha (free ? 1.0f : 0.35f);
+        }
+    };
+}
+
+//==============================================================================
+class LfoPanel : public juce::Component
+{
+public:
+    LfoPanel (OctoCidAudioProcessor& p, LfoEditShared& s) : proc (p), shared (s), tabs (s), editor (p, s, true)
+    {
+        addAndMakeVisible (tabs);
+        addAndMakeVisible (editor);
+        for (int i = 0; i < ModParams::numLfos; ++i) controls[(size_t) i].build (*this, p.apvts, i, false);
+        bigButton.setButtonText (juce::String::fromUTF8 ("GRAND ÉDITEUR"));
+        bigButton.setComponentID ("lfoBigButton");
+        bigButton.setTooltip (juce::String::fromUTF8 ("Ouvre le grand éditeur de LFO (formes prêtes, grille, pinceau, tous les réglages)"));
+        bigButton.onClick = [this] { if (onOpenBig) onOpenBig(); };
+        addAndMakeVisible (bigButton);
+        shared.selectListeners.push_back ([this] (int i) { select (i); });
+        select (shared.selected);
     }
 
-    int selected() const noexcept { return current; }
+    std::function<void()> onOpenBig;
 
     void resized() override
     {
@@ -65,193 +155,169 @@ public:
         auto row1 = r.withTrimmedTop (22).withHeight (22);
         tabs.setBounds (row1.removeFromLeft (84));
         row1.removeFromLeft (6);
+        auto row2 = r.withTrimmedTop (50).withTrimmedBottom (6);
+        editor.setBounds (row2.removeFromLeft (220));
+        row2.removeFromLeft (4);
+        bigButton.setBounds (row2.removeFromBottom (20));
         for (auto& c : controls)
         {
             auto rr = row1;
             c.shape.setBounds (rr.removeFromLeft (88)); rr.removeFromLeft (4);
             c.sync.setBounds (rr.removeFromLeft (76));  rr.removeFromLeft (4);
             c.mode.setBounds (rr);
-        }
-        auto row2 = r.withTrimmedTop (50).withTrimmedBottom (6);
-        display.setBounds (row2.removeFromLeft (104).reduced (0, 4));
-        row2.removeFromLeft (4);
-        const int kw = row2.getWidth() / 5;
-        for (auto& c : controls)
-        {
-            auto rr = row2;
-            for (auto* k : { c.rate.get(), c.phase.get(), c.delay.get(), c.fade.get(), c.smooth.get() })
-                k->setBounds (rr.removeFromLeft (kw));
+            auto k = row2;
+            c.rate->setBounds (k.removeFromLeft (k.getWidth() / 2));
+            c.phase->setBounds (k);
         }
     }
 
-    // ~30 fois par seconde (timer de l'éditeur)
     void tick()
     {
-        auto& c = controls[(size_t) current];
-        const bool free = state.getRawParameterValue (ModParams::lfoId (current, "sync"))->load() < 0.5f;
-        c.rate->setAlpha (free ? 1.0f : 0.35f);
-        display.repaint();
-        for (auto* k : { c.rate.get(), c.phase.get(), c.delay.get(), c.fade.get(), c.smooth.get() })
-            k->modulationTick();
+        controls[(size_t) shared.selected].dimRate (proc.apvts, shared.selected);
+        editor.repaint();
+    }
+
+    LfoEditor& getEditor() noexcept { return editor; }
+
+private:
+    void select (int i)
+    {
+        for (int k = 0; k < ModParams::numLfos; ++k) controls[(size_t) k].show (k == i);
+        tabs.repaint();
+        editor.repaint();
+    }
+
+    OctoCidAudioProcessor& proc;
+    LfoEditShared& shared;
+    lfoui::Tabs tabs;
+    LfoEditor editor;
+    juce::TextButton bigButton;
+    std::array<lfoui::Controls, ModParams::numLfos> controls;
+};
+
+//==============================================================================
+// Grand éditeur (page LFO du tiroir)
+class LfoBigPage : public juce::Component
+{
+public:
+    LfoBigPage (OctoCidAudioProcessor& p, LfoEditShared& s) : proc (p), shared (s), tabs (s, true), editor (p, s, false)
+    {
+        addAndMakeVisible (tabs);
+        addAndMakeVisible (editor);
+        for (int i = 0; i < ModParams::numLfos; ++i) controls[(size_t) i].build (*this, p.apvts, i, true);
+
+        auto button = [this] (juce::TextButton& b, const juce::String& text, const juce::String& tip, std::function<void()> f)
+        {
+            b.setButtonText (text); b.setTooltip (tip); b.onClick = std::move (f);
+            addAndMakeVisible (b);
+        };
+        button (presets, juce::String::fromUTF8 ("FORMES ▾"), juce::String::fromUTF8 ("Formes prêtes (pompe, rebond, escaliers, porte trance…)"),
+                [this] { editor.showPresetMenu (&presets); });
+        button (flip, "INVERSER", "Retourner la forme (haut / bas)", [this] { editor.flip(); });
+        button (mirror, "MIROIR", "Retourner la forme (gauche / droite)", [this] { editor.mirror(); });
+        button (undo, "ANNULER", juce::String::fromUTF8 ("Annuler la dernière modification de forme"), [this] { editor.undo(); });
+        button (snap, "AIMANT", juce::String::fromUTF8 ("Aimanter les points à la grille (Ctrl en glissant : l'inverse)"),
+                [this] { shared.snap = ! shared.snap; refreshButtons(); });
+        const char* brushNames[3] = { "POINTS", "MARCHES", "RAMPES" };
+        const char* brushTips[3] = { "Dessin libre avec des points et des courbes",
+                                     "Pinceau : peindre des marches dans la grille, comme un step séquenceur",
+                                     "Pinceau : peindre des rampes (pompe, porte trance)" };
+        for (int b = 0; b < 3; ++b)
+            button (brush[(size_t) b], brushNames[b], juce::String::fromUTF8 (brushTips[b]), [this, b] { shared.brush = b; refreshButtons(); shared.repaintAll(); });
+
+        for (int v : LfoEditShared::gridXChoices) gridX.addItem (juce::String (v), v);
+        for (int v : LfoEditShared::gridYChoices) gridY.addItem (juce::String (v), v);
+        gridX.setTooltip ("Grille horizontale (cases par cycle)");
+        gridY.setTooltip ("Grille verticale (niveaux)");
+        gridX.onChange = [this] { shared.gridX = juce::jmax (1, gridX.getSelectedId()); shared.repaintAll(); };
+        gridY.onChange = [this] { shared.gridY = juce::jmax (1, gridY.getSelectedId()); shared.repaintAll(); };
+        addAndMakeVisible (gridX); addAndMakeVisible (gridY);
+
+        button (close, juce::String::fromUTF8 ("FERMER ×"), "Refermer le grand éditeur", [this] { if (onClose) onClose(); });
+
+        shared.selectListeners.push_back ([this] (int i) { select (i); });
+        select (shared.selected);
+        refreshButtons();
+    }
+
+    std::function<void()> onClose;
+
+    void paint (juce::Graphics& g) override
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.85f));
+        g.setFont (OctoLook::monoFont (12.0f));
+        g.drawText ("X", gridXLabel, juce::Justification::centredRight);
+        g.drawText ("Y", gridYLabel, juce::Justification::centredRight);
+    }
+
+    void resized() override
+    {
+        close.setBounds (getWidth() - 96, 3, 84, 18);
+        auto r = getLocalBounds().reduced (10, 0).withTrimmedTop (22).withTrimmedBottom (6);
+        tabs.setBounds (r.removeFromLeft (30).withTrimmedTop (2));
+        r.removeFromLeft (8);
+        auto right = r.removeFromRight (360);
+        r.removeFromRight (8);
+        auto bar = r.removeFromTop (22);
+        r.removeFromTop (4);
+        editor.setBounds (r);
+
+        presets.setBounds (bar.removeFromLeft (78)); bar.removeFromLeft (6);
+        for (auto& b : brush) { b.setBounds (bar.removeFromLeft (66)); bar.removeFromLeft (2); }
+        bar.removeFromLeft (6);
+        snap.setBounds (bar.removeFromLeft (58));
+
+        auto tools = right.removeFromBottom (22);
+        right.removeFromBottom (4);
+        flip.setBounds (tools.removeFromLeft (70)); tools.removeFromLeft (3);
+        mirror.setBounds (tools.removeFromLeft (60)); tools.removeFromLeft (3);
+        undo.setBounds (tools.removeFromLeft (68)); tools.removeFromLeft (6);
+        gridXLabel = tools.removeFromLeft (14); gridX.setBounds (tools.removeFromLeft (52)); tools.removeFromLeft (4);
+        gridYLabel = tools.removeFromLeft (14); gridY.setBounds (tools.removeFromLeft (52));
+
+        for (auto& c : controls)
+        {
+            auto row = right.withHeight (22);
+            const int w = (row.getWidth() - 12) / 4;
+            c.shape.setBounds (row.removeFromLeft (w)); row.removeFromLeft (4);
+            c.sync.setBounds (row.removeFromLeft (w));  row.removeFromLeft (4);
+            c.mode.setBounds (row.removeFromLeft (w));  row.removeFromLeft (4);
+            c.pol.setBounds (row);
+            auto k = right.withTrimmedTop (28);
+            const int kw = k.getWidth() / 5;
+            for (auto* kn : { c.rate.get(), c.phase.get(), c.delay.get(), c.fade.get(), c.smooth.get() })
+                kn->setBounds (k.removeFromLeft (kw));
+        }
+    }
+
+    void tick()
+    {
+        if (! isShowing()) return;
+        controls[(size_t) shared.selected].dimRate (proc.apvts, shared.selected);
+        editor.repaint();
     }
 
 private:
-    //--------------------------------------------------------------------------
-    struct Tabs : juce::Component
-    {
-        std::function<void (int)> onChange;
-        int current = 0;
-        void paint (juce::Graphics& g) override
-        {
-            const float w = (float) getWidth() / 3.0f;
-            for (int i = 0; i < 3; ++i)
-            {
-                auto r = juce::Rectangle<float> (w * (float) i, 0.0f, w, (float) getHeight()).reduced (1.5f);
-                const auto col = octoui::ModHost::lfoColour (i);
-                g.setColour (i == current ? col : OctoColours::panelHi.withAlpha (0.9f));
-                g.fillRect (r);
-                g.setColour (i == current ? col.brighter (0.4f) : col.withAlpha (0.8f));
-                g.drawRect (r, 1.5f);
-                g.setColour (i == current ? OctoColours::ink : OctoColours::cream);
-                g.setFont (OctoLook::monoFont (12.0f));
-                g.drawText (juce::String (i + 1), r, juce::Justification::centred);
-            }
-        }
-        void mouseDown (const juce::MouseEvent& e) override
-        {
-            current = juce::jlimit (0, 2, (int) (e.position.x / ((float) getWidth() / 3.0f)));
-            repaint();
-            if (onChange) onChange (current);
-        }
-    };
-
-    //--------------------------------------------------------------------------
-    // Écran : forme d'onde, point qui court, poignée de glisser-déposer
-    struct Display : juce::Component, public juce::SettableTooltipClient
-    {
-        LfoPanel* owner = nullptr;
-        Display()
-        {
-            setTooltip (juce::String::fromUTF8 ("Attrape l'écran et lâche-le sur un potard pour le moduler. Clic sur ± : bipolaire / unipolaire."));
-            setMouseCursor (juce::MouseCursor::DraggingHandCursor);
-        }
-        static float shapeAt (int shape, float x)
-        {
-            static const float rnd[8] = { 0.3f, -0.8f, 0.9f, -0.2f, 0.6f, -0.6f, 0.1f, -0.95f };
-            switch (shape)
-            {
-                case 1: return x < 0.5f ? 4.0f * x - 1.0f : 3.0f - 4.0f * x;
-                case 2: return 2.0f * x - 1.0f;
-                case 3: return 1.0f - 2.0f * x;
-                case 4: return x < 0.5f ? 1.0f : -1.0f;
-                case 5: return rnd[(int) (x * 8.0f) & 7];
-                case 6: { const float p = x * 8.0f; const int i = (int) p; const float t = 0.5f - 0.5f * std::cos (3.14159265f * (p - (float) i));
-                          return rnd[i & 7] + (rnd[(i + 1) & 7] - rnd[i & 7]) * t; }
-                default: return std::sin (6.28318531f * x);
-            }
-        }
-        juce::Rectangle<float> polArea() const { return getLocalBounds().toFloat().removeFromTop (16.0f).removeFromRight (22.0f); }
-        void paint (juce::Graphics& g) override
-        {
-            const int i = owner->current;
-            auto& st = owner->state;
-            const int shape = (int) st.getRawParameterValue (ModParams::lfoId (i, "shape"))->load();
-            const bool uni = st.getRawParameterValue (ModParams::lfoId (i, "pol"))->load() > 0.5f;
-            const auto col = octoui::ModHost::lfoColour (i);
-            auto r = getLocalBounds().toFloat();
-            g.setColour (juce::Colour (0xff141216).withAlpha (0.85f));
-            g.fillRect (r);
-            g.setColour (col.withAlpha (0.7f));
-            g.drawRect (r, 1.5f);
-            auto plot = r.reduced (6.0f, 10.0f).withTrimmedBottom (6.0f);
-            g.setColour (col.withAlpha (0.15f));
-            g.drawHorizontalLine ((int) (uni ? plot.getBottom() : plot.getCentreY()), plot.getX(), plot.getRight());
-            juce::Path p;
-            auto yOf = [&] (float v) { return uni ? plot.getBottom() - (0.5f * (v + 1.0f)) * plot.getHeight()
-                                                  : plot.getCentreY() - v * plot.getHeight() * 0.5f; };
-            for (int k = 0; k <= 80; ++k)
-            {
-                const float x = (float) k / 80.0f;
-                const juce::Point<float> pt (plot.getX() + x * plot.getWidth(), yOf (shapeAt (shape, x)));
-                if (k == 0) p.startNewSubPath (pt); else p.lineTo (pt);
-            }
-            g.setColour (col.withAlpha (0.25f)); g.strokePath (p, juce::PathStrokeType (5.0f));
-            g.setColour (col);                   g.strokePath (p, juce::PathStrokeType (1.6f));
-            // point qui suit la sortie réelle du LFO
-            const float ph = owner->lfoPhases[(size_t) i].load (std::memory_order_relaxed);
-            const float v = owner->lfoValues[(size_t) i].load (std::memory_order_relaxed);
-            const juce::Point<float> dot (plot.getX() + ph * plot.getWidth(), uni ? plot.getBottom() - v * plot.getHeight() : plot.getCentreY() - v * plot.getHeight() * 0.5f);
-            g.setColour (juce::Colours::white); g.fillEllipse (juce::Rectangle<float> (7.0f, 7.0f).withCentre (dot));
-            // libellés
-            g.setFont (OctoLook::monoFont (10.0f));
-            g.setColour (col);
-            g.drawText (uni ? "+" : juce::String::fromUTF8 ("±"), polArea(), juce::Justification::centred);
-            g.setColour (col.withAlpha (0.75f));
-            g.drawText ("LFO " + juce::String (i + 1), r.removeFromTop (16.0f).reduced (5.0f, 0.0f), juce::Justification::centredLeft);
-            g.drawText (juce::String::fromUTF8 ("glisser ▸ potard"), getLocalBounds().toFloat().removeFromBottom (13.0f), juce::Justification::centred);
-        }
-        void mouseDown (const juce::MouseEvent& e) override
-        {
-            dragStarted = false;
-            if (polArea().contains (e.position))
-            {
-                if (auto* prm = owner->state.getParameter (ModParams::lfoId (owner->current, "pol")))
-                {
-                    prm->beginChangeGesture();
-                    prm->setValueNotifyingHost (prm->getValue() > 0.5f ? 0.0f : 1.0f);
-                    prm->endChangeGesture();
-                }
-                repaint();
-            }
-        }
-        void mouseDrag (const juce::MouseEvent& e) override
-        {
-            if (dragStarted || e.getDistanceFromDragStart() < 4 || polArea().contains (e.mouseDownPosition)) return;
-            if (auto* dc = juce::DragAndDropContainer::findParentDragContainerFor (this))
-            {
-                dragStarted = true;
-                juce::Image img (juce::Image::ARGB, 64, 22, true);
-                {
-                    juce::Graphics g (img);
-                    const auto col = octoui::ModHost::lfoColour (owner->current);
-                    g.setColour (col); g.fillRoundedRectangle (0, 0, 64, 22, 4);
-                    g.setColour (OctoColours::ink); g.setFont (OctoLook::monoFont (12.0f));
-                    g.drawText ("LFO " + juce::String (owner->current + 1), 0, 0, 64, 22, juce::Justification::centred);
-                }
-                dc->startDragging ("octolfo:" + juce::String (owner->current), this, juce::ScaledImage (img), true);
-            }
-        }
-        bool dragStarted = false;
-    };
-
     void select (int i)
     {
-        current = juce::jlimit (0, ModParams::numLfos - 1, i);
-        tabs.current = current;
-        for (int k = 0; k < ModParams::numLfos; ++k)
-        {
-            auto& c = controls[(size_t) k];
-            for (juce::Component* comp : { (juce::Component*) &c.shape, (juce::Component*) &c.sync, (juce::Component*) &c.mode,
-                                           (juce::Component*) c.rate.get(), (juce::Component*) c.phase.get(), (juce::Component*) c.delay.get(),
-                                           (juce::Component*) c.fade.get(), (juce::Component*) c.smooth.get() })
-                comp->setVisible (k == current);
-        }
+        for (int k = 0; k < ModParams::numLfos; ++k) controls[(size_t) k].show (k == i);
         tabs.repaint();
-        display.repaint();
+    }
+    void refreshButtons()
+    {
+        snap.setToggleState (shared.snap, juce::dontSendNotification);
+        for (int b = 0; b < 3; ++b) brush[(size_t) b].setToggleState (shared.brush == b, juce::dontSendNotification);
+        gridX.setSelectedId (shared.gridX, juce::dontSendNotification);
+        gridY.setSelectedId (shared.gridY, juce::dontSendNotification);
     }
 
-    struct Controls
-    {
-        juce::ComboBox shape, sync, mode;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> shapeAtt, syncAtt, modeAtt;
-        std::unique_ptr<octoui::Knob> rate, phase, delay, fade, smooth;
-    };
-
-    juce::AudioProcessorValueTreeState& state;
-    Views& lfoValues;
-    Views& lfoPhases;
-    Tabs tabs;
-    Display display;
-    std::array<Controls, ModParams::numLfos> controls;
-    int current = 0;
+    OctoCidAudioProcessor& proc;
+    LfoEditShared& shared;
+    lfoui::Tabs tabs;
+    LfoEditor editor;
+    juce::TextButton presets, flip, mirror, undo, snap, close;
+    std::array<juce::TextButton, 3> brush;
+    juce::ComboBox gridX, gridY;
+    juce::Rectangle<int> gridXLabel, gridYLabel;
+    std::array<lfoui::Controls, ModParams::numLfos> controls;
 };
