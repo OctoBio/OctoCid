@@ -145,12 +145,17 @@ namespace octocid
             constexpr double k1 = 2.0 * R * Is, k2 = k1 / nVt;
             const double sgn = hp < 0.0 ? -1.0 : 1.0, ax = std::abs (hp);
             double v = std::min (ax, nVt * std::asinh (ax / k1));
-            for (int it = 0; it < 4; ++it)
-            {
-                const double e = std::exp (v / nVt);
-                const double f = v - ax + k1 * 0.5 * (e - 1.0 / e);
-                v -= f / (1.0 + k2 * 0.5 * (e + 1.0 / e));
-            }
+            if (ax < 1.0e-3)
+                v = ax / (1.0 + k2);                                 // petit signal : diodes bloquées, solution linéaire
+            else
+                for (int it = 0; it < 4; ++it)
+                {
+                    const double e = std::exp (v / nVt);
+                    const double f = v - ax + k1 * 0.5 * (e - 1.0 / e);
+                    const double dv = f / (1.0 + k2 * 0.5 * (e + 1.0 / e));
+                    v -= dv;
+                    if (std::abs (dv) < 1.0e-7) break;              // convergé (souvent en 2 itérations)
+                }
             return sgn * v * 1.6;                                    // ~±1 en sortie d'écrêtage
         }
 

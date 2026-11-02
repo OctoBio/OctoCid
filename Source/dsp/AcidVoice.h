@@ -91,7 +91,7 @@ namespace octocid
             mufflerLow.prepare (sampleRate, 160.0f);
             lfo.prepare (sampleRate);
 
-            smoothCoef      = onePoleCoef (0.008f, sampleRate);
+            smoothCoef      = onePoleCoef (0.004f, sampleRate);   // potards : réponse rapide, sans « zipper »
             accentAttackCoef = onePoleCoef (kAccentAttackS, sampleRate);
             ampDecay     = std::exp (-1.0f / (kAmpDecayS * (float) sampleRate));
             ampRelNormal = std::exp (-1.0f / (kAmpReleaseS * (float) sampleRate));
@@ -291,7 +291,7 @@ namespace octocid
             // --- Filtre (Filter Drive = gain d'entrée, sature la boucle)
             const float driveGain = 1.0f + 7.0f * sm.filterDrive * sm.filterDrive;
             raw *= driveGain;
-            float filtered = filter.process (raw, cutoffHz, k, 2.0f * (1.0f + rSkew) / std::sqrt (driveGain));
+            float filtered = filter.process (raw, cutoffHz, k, 2.0f * (1.0f + rSkew) * (1.0f + 0.6f * rSkew) / std::sqrt (driveGain));   // + ~4 dB à résonance max : la perte de grave reste, en moins brutal
 
             // --- Sub-oscillateur (après le filtre : rond et propre)
             if (sm.subLevel > 1.0e-4f)

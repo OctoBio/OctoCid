@@ -186,6 +186,18 @@ bool OctoCidAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
 //==============================================================================
 void OctoCidAudioProcessor::updateParams() noexcept
 {
+    blockBpm = 120.0;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            if (auto b = pos->getBpm())
+                blockBpm = *b;
+    updateVoiceParams();
+    updateFxParams();
+}
+
+// Réglages de la voix et du Drive (relus toutes les 64 échantillons)
+void OctoCidAudioProcessor::updateVoiceParams() noexcept
+{
     octocid::VoiceParams v;
     v.tune      = p.tune->load();
     v.cutoff    = p.cutoff->load()    * 0.01f;
@@ -216,14 +228,7 @@ void OctoCidAudioProcessor::updateParams() noexcept
     // LFO synchronisé : fréquence tirée du tempo du DAW
     const int sync = juce::jlimit (0, LfoSync::names.size() - 1, (int) p.lfoSync->load());
     if (sync > 0)
-    {
-        double bpm = 120.0;
-        if (auto* ph = getPlayHead())
-            if (auto pos = ph->getPosition())
-                if (auto b = pos->getBpm())
-                    bpm = *b;
-        v.lfoRateHz = (float) (bpm / 60.0 / LfoSync::beats[sync]);
-    }
+        v.lfoRateHz = (float) (blockBpm / 60.0 / LfoSync::beats[sync]);
 
     voice.setParams (v);
     voice.setAccentThreshold ((int) p.accentThr->load());
@@ -238,7 +243,11 @@ void OctoCidAudioProcessor::updateParams() noexcept
         drive.reset();               // les états du Drive ne valent rien d'un emplacement à l'autre
     }
     voice.setPreVcaDrive (drivePreVca ? &drive : nullptr);
+}
 
+// Réglages des effets (une fois par bloc : ils sont lissés à l'échantillon)
+void OctoCidAudioProcessor::updateFxParams() noexcept
+{
     // Effets
     impactFx.setAmount (p.impact->load() * 0.01f);
     smashFx.setAmount (p.smash->load() * 0.01f);
@@ -566,9 +575,15 @@ void OctoCidAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     updateLfoSync();
     buildEvents (midi, numSamples);
 
+    // Rendu par tranches de 64 échantillons, réglages relus à chaque tranche :
+    // un potard tourné répond en ~1 ms quelle que soit la taille du buffer du DAW.
     float* left = buffer.getWritePointer (0);
-    for (int pos = 0; pos < numSamples; pos += maxBlockSize)
-        renderChunk (left + pos, juce::jmin (maxBlockSize, numSamples - pos), pos);
+    constexpr int kParamSlice = 64;
+    for (int pos = 0; pos < numSamples; pos += kParamSlice)
+    {
+        if (pos > 0) updateVoiceParams();
+        renderChunk (left + pos, std::min ({ kParamSlice, maxBlockSize, numSamples - pos }), pos);
+    }
         lfoView.store (voice.getLfoValue(), std::memory_order_relaxed);
 
     // Punch (mono), puis delay et reverb (stéréo), puis volume et limiteur de sécurité

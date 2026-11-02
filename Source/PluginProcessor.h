@@ -101,6 +101,9 @@ public:
 private:
     void handleEvent (const octocid::NoteEvent& ev) noexcept;
     void updateParams() noexcept;
+    void updateVoiceParams() noexcept;
+    void updateFxParams() noexcept;
+    double blockBpm = 120.0;
     void updateLfoSync() noexcept;
     void buildEvents (const juce::MidiBuffer& midi, int numSamples) noexcept;
     void drainPatternFifo() noexcept;

@@ -211,16 +211,21 @@ namespace octocid
             for (auto* d : { &inAp[0], &inAp[1], &inAp[2], &inAp[3], &apA, &dA1, &apA2, &dA2, &apB, &dB1, &apB2, &dB2, &pre })
                 d->clear();
             hpS = bwS = dampA = dampB = 0.0f; lfoPhase = 0.0f;
-            mix = targetMix; decay = targetDecay; damp = targetDamp;
+            mix = targetMix; decay = targetDecay; damp = targetDamp; bwCoef = targetBw;
         }
 
         // decay01 : 0..1 (queue courte à très longue), tone01 : 0 = sombre, 1 = brillant
         void setParams (float mix01, float decay01, float tone01) noexcept
         {
             targetMix   = std::clamp (mix01, 0.0f, 1.0f);
-            targetDecay = 0.25f + 0.72f * std::clamp (decay01, 0.0f, 1.0f);
-            const float fc = 1500.0f * std::pow (8.0f, std::clamp (tone01, 0.0f, 1.0f));   // 1,5..12 kHz
+            // Durée de queue visée 0,6 s .. 6 s (plage d'une plaque EMT 140), répartie en logarithme
+            const float rt60 = 0.6f * std::pow (10.0f, std::clamp (decay01, 0.0f, 1.0f));
+            targetDecay = std::exp (-1.1f / rt60);
+            // Tone : amortissement dans la boucle 600 Hz .. 14 kHz ET bande passante d'entrée 2,5 .. 16 kHz
+            const float t = std::clamp (tone01, 0.0f, 1.0f);
+            const float fc = 600.0f * std::pow (23.3f, t);
             targetDamp = std::exp (-2.0f * kPi * fc / (float) fs);
+            targetBw = 1.0f - std::exp (-2.0f * kPi * std::min (2500.0f * std::pow (6.4f, t), 0.45f * (float) fs) / (float) fs);
         }
 
         bool isActive() const noexcept { return mix > 1.0e-4f || targetMix > 1.0e-4f; }
@@ -230,6 +235,7 @@ namespace octocid
             mix += (targetMix - mix) * smooth;
             decay += (targetDecay - decay) * smooth;
             damp += (targetDamp - damp) * smooth;
+            bwCoef += (targetBw - bwCoef) * smooth;
 
             // Entrée mono : coupe-grave 350 Hz, largeur de bande, pré-délai
             float x = 0.5f * (l + r);
@@ -327,6 +333,6 @@ namespace octocid
         float apALen = 0.0f, apBLen = 0.0f, excursion = 0.0f;
         float hpG = 0.0f, hpS = 0.0f, bwCoef = 0.5f, bwS = 0.0f, dampA = 0.0f, dampB = 0.0f;
         float lfoPhase = 0.0f, lfoInc = 0.0f;
-        float targetMix = 0.0f, mix = 0.0f, targetDecay = 0.5f, decay = 0.5f, targetDamp = 0.3f, damp = 0.3f, smooth = 0.01f;
+        float targetMix = 0.0f, mix = 0.0f, targetDecay = 0.5f, decay = 0.5f, targetDamp = 0.3f, damp = 0.3f, smooth = 0.01f, targetBw = 0.5f;
     };
 }
