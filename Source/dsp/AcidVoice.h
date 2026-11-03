@@ -293,7 +293,7 @@ namespace octocid
             // --- Filtre (Filter Drive = gain d'entrée, sature la boucle)
             const float driveGain = 1.0f + 7.0f * sm.filterDrive * sm.filterDrive;
             raw *= driveGain;
-            float filtered = filter.process (raw, cutoffHz, k, 2.0f * (1.0f + rSkew) * (1.0f + 0.6f * rSkew) / std::sqrt (driveGain));   // + ~4 dB à résonance max : la perte de grave reste, en moins brutal
+            float filtered = filter.process (raw, cutoffHz, k, 2.0f * (1.0f + rSkew) / std::sqrt (driveGain));   // comme la 303 : le volume baisse quand la résonance monte (contraste « squelch »)
 
             // --- Sub-oscillateur (après le filtre : rond et propre)
             if (sm.subLevel > 1.0e-4f)

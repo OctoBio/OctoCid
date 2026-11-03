@@ -46,7 +46,7 @@ namespace OctoBlob
         void noteOn (bool accent, bool slide)
         {
             const float a = rnd() * juce::MathConstants<float>::twoPi;
-            const float kick = slide ? 0.6f : (accent ? 2.4f : 1.4f);
+            const float kick = slide ? 0.08f : (accent ? 0.22f : 0.12f);   // presque sur place : il se déforme plutôt qu'il ne bouge
             vel += { std::cos (a) * kick, std::sin (a) * kick * 0.35f };
             squashVel += accent ? 7.0f : (slide ? 1.5f : 4.0f);
             for (int i = 0; i < kHarm; ++i) ampVel[(size_t) i] += (rnd() - 0.5f) * (accent ? 3.0f : 1.7f) / (1.0f + 0.3f * (float) i);
@@ -71,7 +71,7 @@ namespace OctoBlob
                 }
             }
             twistVel += (rnd() - 0.5f) * (accent ? 6.0f : 3.0f);
-            if (accent && shape.jump > -0.01f) jumpVel = -3.4f;
+            if (accent && shape.jump > -0.01f) jumpVel = -0.9f;          // tout petit rebond
             mouth = std::max (mouth, accent ? 1.0f : 0.45f);
             for (auto& r : ripples) if (r.age < 0.0f || r.age > 1.0f) { r.age = 0.0f; r.c = shape.pos; r.c.y += shape.jump; break; }
         }
@@ -133,9 +133,9 @@ namespace OctoBlob
                 }
             shape.wavePhase += dt * (2.0f + 4.0f * rev);
 
-            // Errance : il part dans tous les sens, rappelé vers le centre
-            const juce::Point<float> target (1.05f * std::sin (t * 0.31f) + 0.35f * std::sin (t * 0.77f + 2.0f) + 0.15f * in.lfo,
-                                             0.18f * std::sin (t * 0.53f + 1.0f));
+            // Presque fixe : il ondule légèrement sur place (ce sont les déformations qui vivent)
+            const juce::Point<float> target (0.05f * std::sin (t * 0.31f) + 0.03f * std::sin (t * 0.77f + 2.0f) + 0.06f * in.lfo,
+                                             0.03f * std::sin (t * 0.53f + 1.0f));
             vel += ((target - shape.pos) * 3.0f - vel * 1.9f) * dt;
             shape.pos += vel * dt;
             auto bounce = [this] (float& p, float& v, float lim)
@@ -143,8 +143,8 @@ namespace OctoBlob
                 if (p > lim)  { p = lim;  v = -std::abs (v) * 0.5f; squashVel -= 2.0f; }
                 if (p < -lim) { p = -lim; v =  std::abs (v) * 0.5f; squashVel -= 2.0f; }
             };
-            bounce (shape.pos.x, vel.x, 1.3f);
-            bounce (shape.pos.y, vel.y, 0.25f);
+            bounce (shape.pos.x, vel.x, 0.12f);
+            bounce (shape.pos.y, vel.y, 0.05f);
 
             // Saut (accents)
             if (shape.jump < 0.0f || jumpVel < 0.0f)
@@ -158,7 +158,7 @@ namespace OctoBlob
             squashVel += (-130.0f * shape.squash - 9.0f * squashVel) * dt;
             shape.squash = juce::jlimit (-0.32f, 0.32f, shape.squash + squashVel * dt);
             const float speed = vel.getDistanceFromOrigin() + std::abs (jumpVel) * 0.5f;
-            shape.stretch = juce::jlimit (0.0f, 0.12f, speed * 0.05f);
+            shape.stretch = juce::jlimit (0.0f, 0.05f, speed * 0.05f);
             if (speed > 0.05f) shape.stretchAngle = std::atan2 (vel.y + jumpVel * 0.5f, vel.x);
 
             hist[(size_t) (histPos = (histPos + 1) % kHist)] = shape;

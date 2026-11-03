@@ -2,7 +2,7 @@
 
 Synthé acid VST3 par **OctoBio** — émulation fidèle d'une bassline acid classique, séquenceur intégré, tiroir de mods modernes et une mascotte animée (blob gluant ou escargot).
 
-> Version 1.6.1. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
+> Version 1.6.2. Jouable au clavier, au piano roll ou avec le séquenceur intégré.
 
 ## ⬇️ Télécharger
 
@@ -31,8 +31,8 @@ Ctrl + glisser = réglage fin, molette. Fond « portail » illustré, panneaux e
 ## La mascotte
 
 **Blob gluant** (par défaut) : peau calculée pixel par pixel (relief, couche de mucus luisante, lumière qui
-traverse les bords). Il se balade dans tous les sens, éclate comme une goutte d'eau sur les 4 axes à chaque note (avec des gouttelettes projetées), tremble
-comme de la gelée et saute sur les accents, sans jamais changer de taille. **Accent** : il bave (filets, gouttes, flaque) ; **Resonance** : couleur ;
+traverse les bords). Il reste presque sur place et se déforme : il éclate comme une goutte d'eau sur les 4 axes à chaque note (avec des gouttelettes projetées), tremble
+comme de la gelée et saute sur les accents, sans jamais changer de taille. **Accent** : il bave (filets et gouttes) ; **Resonance** : couleur ;
 **Cutoff** : fermé il fond et s'étale, ouvert il devient nerveux, et ses pupilles se dilatent ; **Reverb** : il se
 tord en spirale, laisse des échos fantômes et des ondes ; **Drive** : bulles et cœur qui chauffe ; **Env Mod** : ses
 cellules tournent ; **LFO** : il se balance. Menu « ... » > Apparence > Mascotte pour revenir à l'escargot.
@@ -82,8 +82,11 @@ avec le **Tune**. Il cligne des yeux, et s'endort après 20 s sans note. Bouton 
   - 5 modes : *Libre*, *Note* (repart à chaque note détachée, pas sur un slide), *Synchro* (calé sur la position
     du DAW : identique à chaque lecture), *Un coup* (un seul cycle, comme une enveloppe), *Aléatoire* (phase au hasard) ;
   - Phase de départ, Délai puis Montée (fondu d'entrée), Lissage (sans saut quand le LFO repart), bipolaire / unipolaire.
-  - **Formes dessinées à la souris** (façon Serum / Vital) : double-clic pour ajouter ou supprimer un point, glisser un
-    point pour le déplacer (aimanté à la grille, Ctrl : sans aimant, Maj : réglage fin), glisser une courbe pour la bomber.
+  - **Formes dessinées à la souris** (façon Serum) : double-clic pour ajouter ou supprimer un point, glisser un point
+    (aimanté à la grille, Ctrl : sans aimant, Maj : fin, valeur affichée), glisser la courbe elle-même pour la bomber
+    (Alt : toutes les courbes), glisser dans le vide pour choisir plusieurs points et les déplacer ensemble,
+    Suppr pour les effacer, Ctrl + A / Ctrl + Z / Ctrl + C / Ctrl + V, *Tout effacer*, pinceau *Libre* (à main levée),
+    Maj + glisser : marches.
     **Grand éditeur** (bouton du panneau LFO) : 16 formes prêtes (pompe, rebond, escaliers, porte trance, wobble…),
     grille X / Y, aimant, pinceau *Marches* / *Rampes* (comme un step séquenceur), inverser, miroir, annuler, copier / coller.
     Les formes sont gardées avec le projet et dans les presets utilisateur.

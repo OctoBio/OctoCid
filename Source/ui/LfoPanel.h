@@ -215,14 +215,16 @@ public:
                 [this] { editor.showPresetMenu (&presets); });
         button (flip, "INVERSER", "Retourner la forme (haut / bas)", [this] { editor.flip(); });
         button (mirror, "MIROIR", "Retourner la forme (gauche / droite)", [this] { editor.mirror(); });
+        button (clear, "EFFACER", juce::String::fromUTF8 ("Supprimer tous les points (ligne plate) — Suppr : seulement les points choisis"), [this] { editor.clearAll(); });
         button (undo, "ANNULER", juce::String::fromUTF8 ("Annuler la dernière modification de forme"), [this] { editor.undo(); });
         button (snap, "AIMANT", juce::String::fromUTF8 ("Aimanter les points à la grille (Ctrl en glissant : l'inverse)"),
                 [this] { shared.snap = ! shared.snap; refreshButtons(); });
-        const char* brushNames[3] = { "POINTS", "MARCHES", "RAMPES" };
-        const char* brushTips[3] = { "Dessin libre avec des points et des courbes",
+        const char* brushNames[4] = { "POINTS", "LIBRE", "MARCHES", "RAMPES" };
+        const char* brushTips[4] = { "Points et courbes : double-clic ajoute / supprime, glisser la courbe la bombe, glisser dans le vide choisit plusieurs points",
+                                     "Pinceau libre : dessine la forme à main levée (elle est convertie en points modifiables)",
                                      "Pinceau : peindre des marches dans la grille, comme un step séquenceur",
                                      "Pinceau : peindre des rampes (pompe, porte trance)" };
-        for (int b = 0; b < 3; ++b)
+        for (int b = 0; b < 4; ++b)
             button (brush[(size_t) b], brushNames[b], juce::String::fromUTF8 (brushTips[b]), [this, b] { shared.brush = b; refreshButtons(); shared.repaintAll(); });
 
         for (int v : LfoEditShared::gridXChoices) gridX.addItem (juce::String (v), v);
@@ -263,9 +265,10 @@ public:
         editor.setBounds (r);
 
         presets.setBounds (bar.removeFromLeft (78)); bar.removeFromLeft (6);
-        for (auto& b : brush) { b.setBounds (bar.removeFromLeft (66)); bar.removeFromLeft (2); }
+        for (auto& b : brush) { b.setBounds (bar.removeFromLeft (64)); bar.removeFromLeft (2); }
         bar.removeFromLeft (6);
-        snap.setBounds (bar.removeFromLeft (58));
+        snap.setBounds (bar.removeFromLeft (58)); bar.removeFromLeft (4);
+        clear.setBounds (bar.removeFromLeft (64));
 
         auto tools = right.removeFromBottom (22);
         right.removeFromBottom (4);
@@ -306,7 +309,7 @@ private:
     void refreshButtons()
     {
         snap.setToggleState (shared.snap, juce::dontSendNotification);
-        for (int b = 0; b < 3; ++b) brush[(size_t) b].setToggleState (shared.brush == b, juce::dontSendNotification);
+        for (int b = 0; b < 4; ++b) brush[(size_t) b].setToggleState (shared.brush == b, juce::dontSendNotification);
         gridX.setSelectedId (shared.gridX, juce::dontSendNotification);
         gridY.setSelectedId (shared.gridY, juce::dontSendNotification);
     }
@@ -315,8 +318,8 @@ private:
     LfoEditShared& shared;
     lfoui::Tabs tabs;
     LfoEditor editor;
-    juce::TextButton presets, flip, mirror, undo, snap, close;
-    std::array<juce::TextButton, 3> brush;
+    juce::TextButton presets, flip, mirror, undo, snap, close, clear;
+    std::array<juce::TextButton, 4> brush;
     juce::ComboBox gridX, gridY;
     juce::Rectangle<int> gridXLabel, gridYLabel;
     std::array<lfoui::Controls, ModParams::numLfos> controls;

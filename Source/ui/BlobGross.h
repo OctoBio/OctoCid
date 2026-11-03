@@ -253,29 +253,8 @@ namespace OctoBlob
         const auto light = juce::Colour::fromHSV (std::fmod (hue + 0.97f, 1.0f), 0.5f * st.sat, std::min (1.0f, 1.05f * st.val), 1.0f);
         const auto dark  = juce::Colour::fromHSV (std::fmod (hue + 0.06f, 1.0f), 0.95f, 0.3f * st.val, 1.0f);
         const auto slime = juce::Colour::fromHSV (0.24f, 0.45f, 0.95f, 1.0f).interpolatedWith (base, 0.25f);   // bave vert pâle
-        const float groundY = area.getCentreY() + (0.12f + s.pos.y + 0.92f) * R;
         uint32_t seed = 12345u;
         auto rnd = [&seed] { seed = seed * 1664525u + 1013904223u; return (float) (seed >> 8) / 16777216.0f; };
-
-        // flaque de bave (grandit avec l'accent et le decay)
-        {
-            const float w = R * (1.0f + 0.9f * acc + 0.4f * sim.dec);
-            juce::Path pud;
-            pud.addEllipse (juce::Rectangle<float> (w * 2.0f, R * (0.22f + 0.12f * acc)).withCentre ({ f.c.x + s.pos.x * R * 0.05f, groundY }));
-            g.setColour (juce::Colours::black.withAlpha (0.35f));
-            g.fillEllipse (juce::Rectangle<float> (R * 1.9f, R * 0.24f).withCentre ({ f.c.x, groundY + 2.0f }));
-            g.setColour (slime.withAlpha (0.35f + 0.25f * acc));
-            g.fillPath (pud);
-            if (skin >= 0)
-            {
-                juce::ColourGradient pg (base.withAlpha (0.75f), f.c.x, groundY - R * 0.05f, dark.withAlpha (0.55f), f.c.x + w, groundY, true);
-                g.setGradientFill (pg); g.fillPath (pud);
-            }
-            g.setColour (kInk.withAlpha (0.5f));
-            g.strokePath (pud, juce::PathStrokeType (1.2f));
-            g.setColour (juce::Colours::white.withAlpha (0.45f));
-            g.fillEllipse (juce::Rectangle<float> (w * 0.5f, R * 0.04f).withCentre ({ f.c.x - w * 0.35f, groundY - R * 0.03f }));
-        }
 
         auto body = membrane (s, f);
         const float nrm = shapeNorm (s);
